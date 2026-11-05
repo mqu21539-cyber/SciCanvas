@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""模板：一维热传导（显式差分）。"""
-from . import controls_html, metrics_html
+"""模板：一维热传导（全息 2.5D 版）。"""
+import holo_shell
 
 META = {
     "name": "heat",
@@ -13,190 +13,116 @@ META = {
         {"id": "speed", "label": "时间加速", "unit": "×", "min": 1, "max": 12, "step": 1, "default": 4},
     ],
     "metrics": [
-        {"id": "t", "label": "已模拟时间", "color": "text-cyan-400"},
-        {"id": "max", "label": "最高温度", "color": "text-rose-400"},
-        {"id": "total", "label": "总热量（守恒）", "color": "text-emerald-400"},
-        {"id": "shape", "label": "分布形态", "color": "text-amber-400", "initial": "尖峰"},
+        {"id": "t", "label": "已模拟时间"},
+        {"id": "max", "label": "最高温度"},
+        {"id": "total", "label": "总热量（守恒）"},
+        {"id": "shape", "label": "分布形态"},
     ],
 }
 
 _JS = r"""
 (function(){
-  const P = window.__SCICANVAS__;
-  const cv = document.getElementById('scene');
-  const ctx = cv.getContext('2d');
-  const wrap = document.getElementById('wrap');
-  const els = {}, vals = {};
-  P.controls.forEach(function(c){
-    els[c.id] = document.getElementById(c.id);
-    vals[c.id] = document.getElementById('val_' + c.id);
-  });
-  const btnPause = document.getElementById('btnPause');
-  const btnReset = document.getElementById('btnReset');
+  'use strict';
+  var P = HOLO.P;
+  var N = 60, X0 = 60, X1 = 650, BASE = 330, TOP = 70, BAR = (650 - 60) / 60;
+  var S = { u: new Float64Array(N), t: 0, acc: 0 };
 
-  const N = 90;              // 格子数
-  const DX = 1 / N;
-  let W = 800, H = 500, DPR = 1;
-  const S = { alpha: 0.6, width: 18, speed: 4, t: 0, run: true, u: new Float64Array(N), u0: new Float64Array(N) };
-
-  function resize(){
-    const r = wrap.getBoundingClientRect();
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = Math.max(320, r.width); H = Math.max(220, r.height);
-    cv.width = Math.floor(W * DPR); cv.height = Math.floor(H * DPR);
-    cv.style.width = W + 'px'; cv.style.height = H + 'px';
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
-  window.addEventListener('resize', function(){ resize(); draw(); });
-  resize();
-
-  function read(){
-    S.alpha = parseFloat(els.alpha.value) * 1e-3;
-    S.width = parseFloat(els.width.value);
-    S.speed = parseFloat(els.speed.value);
-    vals.alpha.textContent = (S.alpha * 1e3).toFixed(2);
-    vals.width.textContent = S.width.toFixed(0);
-    vals.speed.textContent = S.speed.toFixed(0);
-  }
-
-  function reset(){
-    read();
-    S.t = 0;
-    const c = (N - 1) / 2;
-    const sigma = Math.max(1.2, (S.width / 100) * N * 0.42);
-    for (let i = 0; i < N; i++){
-      const d = (i - c) / sigma;
-      S.u[i] = Math.exp(-0.5 * d * d);   // 高斯热包，峰值 1
+  function resetField(){
+    var c = (N - 1) / 2;
+    var sigma = Math.max(1.2, (P.width / 100) * N * 0.42);
+    for (var i = 0; i < N; i++) {
+      var d = (i - c) / sigma;
+      S.u[i] = Math.exp(-0.5 * d * d);
     }
-    S.u0 = Float64Array.from(S.u);
-    btnPause.textContent = '暂停';
+    S.t = 0; S.acc = 0;
   }
 
-  // 显式差分：r = α·dt/dx² 必须 ≤ 0.5 才稳定，这里固定取 0.4
   function step(){
-    const r = 0.4;
-    const next = new Float64Array(N);
-    for (let i = 0; i < N; i++){
-      const l = i > 0 ? S.u[i - 1] : S.u[i];           // 绝热边界
-      const rr = i < N - 1 ? S.u[i + 1] : S.u[i];
+    var r = 0.4, next = new Float64Array(N);
+    for (var i = 0; i < N; i++) {
+      var l = i > 0 ? S.u[i - 1] : S.u[i];
+      var rr = i < N - 1 ? S.u[i + 1] : S.u[i];
       next[i] = S.u[i] + r * (l - 2 * S.u[i] + rr);
     }
     S.u = next;
-    S.t += r * DX * DX / S.alpha * 1000;   // 折算成便于阅读的「毫秒级」时间
+    S.t += 0.002;
   }
 
-  function draw(){
-    ctx.clearRect(0, 0, W, H);
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#0b1220'); bg.addColorStop(1, '#0f172a');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-
-    const padL = 56, padR = 24, padT = 40, padB = 48;
-    const plotW = W - padL - padR;
-    const plotH = H - padT - padB;
-
-    // 热力图条带
-    for (let i = 0; i < N; i++){
-      const x = padL + (i / N) * plotW;
-      const w = plotW / N + 1;
-      const v = Math.min(1, S.u[i]);
-      const r = Math.round(15 + 240 * v);
-      const g = Math.round(23 + 120 * (1 - Math.abs(v - 0.5) * 2));
-      const b = Math.round(42 + 200 * (1 - v));
-      ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
-      ctx.fillRect(x, padT, w, 26);
+  window.reset = function(){
+    resetField();
+    var g = '<line x1="' + X0 + '" y1="' + BASE + '" x2="' + X1 + '" y2="' + BASE + '" stroke="#0284c7" stroke-width="2"/>' +
+      '<line x1="' + X0 + '" y1="' + BASE + '" x2="' + X0 + '" y2="' + TOP + '" stroke="#0284c7" stroke-width="2"/>' +
+      '<text x="' + (X0 - 44) + '" y="' + (TOP - 8) + '" fill="#38bdf8" font-size="10">温度 u</text>' +
+      '<text x="' + (X1 - 90) + '" y="' + (BASE + 18) + '" fill="rgba(148,163,184,.7)" font-size="10">绝热边界 ⇄</text>';
+    for (var j = 0; j <= 4; j++) {
+      var y = BASE - (j / 4) * (BASE - TOP);
+      g += '<line x1="' + X0 + '" y1="' + y + '" x2="' + X1 + '" y2="' + y + '" stroke="rgba(56,189,248,.07)"/>';
     }
+    HOLO.L0(g);
+    HOLO.L1(''); HOLO.L2(''); HOLO.L3('');
+  };
 
-    // 温度曲线
-    ctx.beginPath();
-    for (let i = 0; i < N; i++){
-      const x = padL + (i / N) * plotW;
-      const y = padT + 26 + plotH - S.u[i] * (plotH - 20);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 2.2;
-    ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(56,189,248,0.45)';
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // 坐标框
-    ctx.strokeStyle = 'rgba(148,163,184,0.35)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(padL, padT + 26, plotW, plotH);
-
-    ctx.fillStyle = 'rgba(148,163,184,0.75)';
-    ctx.font = '11px ui-monospace, monospace';
-    ctx.fillText('温度分布 u(x)', padL, padT - 12);
-    ctx.fillText('0', padL - 6, padT + 26 + plotH + 14);
-    ctx.fillText('绝热边界 ↔ 绝热边界', padL + plotW / 2 - 60, H - 12);
-
-    // 指标
-    let max = 0, total = 0;
-    for (let i = 0; i < N; i++){ max = Math.max(max, S.u[i]); total += S.u[i]; }
-    const set = function(id, v){ const el = document.getElementById(id); if (el) el.textContent = v; };
-    set('m_t', S.t.toFixed(2));
-    set('m_max', max.toFixed(3));
-    set('m_total', (total / N).toFixed(4));
-    const flat = max < 1.15 / N * 4 ? '几乎均匀' : max < 0.35 ? '正在抹平' : '仍有尖峰';
-    set('m_shape', flat);
+  function color(v){
+    // 蓝 → 青 → 黄 → 红 的伪热力色
+    var r = Math.round(30 + 225 * Math.min(1, v * 1.15));
+    var gg = Math.round(40 + 150 * Math.min(1, 1 - Math.abs(v - 0.55) * 1.6));
+    var b = Math.round(90 + 150 * Math.max(0, 1 - v * 1.6));
+    return 'rgb(' + r + ',' + gg + ',' + b + ')';
   }
 
-  var last = performance.now(), acc = 0;
-  function loop(now){
-    const dt = Math.min((now - last) / 1000, 0.1);
-    last = now;
-    if (S.run){
-      acc += dt * S.speed * 60;    // 每秒约 60·speed 步
-      let guard = 0;
-      while (acc >= 1 && guard++ < 400){ step(); acc -= 1; }
+  window.frame = function(dt, tGlobal){
+    if (dt > 0) {
+      S.acc += dt * P.speed * 26;
+      var guard = 0;
+      while (S.acc >= 1 && guard++ < 260) { step(); S.acc -= 1; }
     }
-    draw();
-    requestAnimationFrame(loop);
-  }
 
-  Object.keys(els).forEach(function(k){ els[k].addEventListener('input', reset); });
-  btnPause.addEventListener('click', function(){
-    S.run = !S.run;
-    btnPause.textContent = S.run ? '暂停' : '继续';
-  });
-  btnReset.addEventListener('click', reset);
+    var bars = '', pts = [], max = 0, total = 0;
+    for (var i = 0; i < N; i++) {
+      var v = Math.min(1, S.u[i]);
+      max = Math.max(max, v); total += v;
+      var x = X0 + i * BAR;
+      var h = v * (BASE - TOP);
+      bars += '<rect x="' + x.toFixed(1) + '" y="' + (BASE - h).toFixed(1) + '" width="' + (BAR - 1).toFixed(1) +
+        '" height="' + h.toFixed(1) + '" fill="' + color(v) + '" opacity="0.85"/>';
+      pts.push((X0 + i * BAR + BAR / 2).toFixed(1) + ',' + (BASE - h).toFixed(1));
+    }
 
-  reset();
-  requestAnimationFrame(loop);
+    HOLO.L1(bars);
+    HOLO.L2('<polyline points="' + pts.join(' ') + '" fill="none" stroke="#e0f2fe" stroke-width="1.6" filter="url(#neon-glow)"/>');
+
+    var lock = HOLO.highlight()
+      ? '<rect x="' + X0 + '" y="' + TOP + '" width="' + (X1 - X0) + '" height="' + (BASE - TOP) + '" fill="none" stroke="#10b981" stroke-dasharray="6 5"/>'
+      : '';
+    HOLO.L3(lock +
+      '<g transform="translate(430,24)">' +
+      '<rect x="0" y="0" width="236" height="58" fill="rgba(2,6,23,.72)" stroke="rgba(56,189,248,.35)"/>' +
+      '<text x="10" y="18" fill="#38bdf8" font-size="10" letter-spacing="1.2">HEAT TELEMETRY</text>' +
+      '<text x="10" y="40" fill="#e0f2fe" font-size="12">t = ' + S.t.toFixed(2) + '   u_max = ' + max.toFixed(3) + '</text>' +
+      '</g>'
+    );
+
+    var shape = max > 0.75 ? '仍有尖峰' : max > 0.3 ? '正在抹平' : '接近均匀';
+    HOLO.metric('t', S.t.toFixed(2));
+    HOLO.metric('max', max.toFixed(3));
+    HOLO.metric('total', (total / N).toFixed(4));
+    HOLO.metric('shape', shape);
+
+    HOLO.telemetry(max, total / N);
+  };
 })();
 """
 
 
 def build(params, copy):
-    body = (
-        '<div class="max-w-7xl mx-auto p-4 lg:p-6">'
-        '<header class="mb-4">'
-        f'<h1 class="text-2xl lg:text-3xl font-bold tracking-tight">{copy["title"]}</h1>'
-        f'<p class="text-slate-400 text-sm mt-1">{copy["subtitle"]}</p>'
-        f'<p class="text-slate-500 text-xs mt-2 font-mono">{copy["formula"]}</p>'
-        "</header>"
-        '<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">'
-        '<div class="lg:col-span-2 bg-slate-900/80 border border-slate-800 rounded-xl p-3">'
-        '<div class="flex items-center justify-between mb-2 px-1">'
-        '<span class="text-xs uppercase tracking-widest text-slate-500">温度分布</span>'
-        '<div class="flex gap-2">'
-        '<button id="btnPause" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">暂停</button>'
-        '<button id="btnReset" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">重置</button>'
-        "</div></div>"
-        '<div id="wrap" class="relative w-full rounded-lg overflow-hidden" style="aspect-ratio:16/10">'
-        '<canvas id="scene" class="w-full h-full"></canvas>'
-        "</div>"
-        '<p class="mt-2 px-1 text-[11px] text-slate-500">上方色条＝温度热力图，蓝线＝温度曲线；两端绝热（无热量流出）</p>'
-        "</div>"
-        '<div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col gap-4">'
-        '<div><h2 class="text-sm font-semibold text-slate-200 mb-3">控制面板</h2>'
-        '<div class="space-y-4">' + controls_html(META, params) + "</div></div>"
-        '<div class="border-t border-slate-800 pt-3"><h2 class="text-sm font-semibold text-slate-200 mb-3">实时数据</h2>'
-        '<div class="grid grid-cols-2 gap-2">' + metrics_html(META) + "</div></div>"
-        '<div class="mt-auto text-[11px] text-slate-500 leading-relaxed bg-slate-950/40 rounded-lg p-2.5 border border-slate-800">'
-        f'<span class="text-slate-400 font-semibold">🤯 直觉挑战：</span>{copy["challenge"]}'
-        "</div></div></div></div>"
-        "<script>" + _JS + "</script>"
+    controls = [dict(c, default=params.get(c["id"], c["default"])) for c in META["controls"]]
+    return holo_shell.render(
+        {
+            "title": copy.get("title", META["title"]),
+            "subtitle": copy.get("subtitle", META["category"]),
+            "formula": copy.get("formula", META["formula"]),
+            "controls": controls,
+            "metrics": META["metrics"],
+        },
+        _JS,
     )
-    return body

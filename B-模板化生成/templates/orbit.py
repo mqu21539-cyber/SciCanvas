@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""模板：中心力场轨道（开普勒问题）。"""
-from . import controls_html, metrics_html
+"""模板：引力轨道（全息 2.5D 版）。"""
+import holo_shell
 
 META = {
     "name": "orbit",
@@ -10,226 +10,118 @@ META = {
     "controls": [
         {"id": "mu", "label": "中心质量 μ", "unit": "×10³", "min": 0.5, "max": 5.0, "step": 0.1, "default": 1.0},
         {"id": "r0", "label": "初始距离 r₀", "unit": "×10³ km", "min": 1.5, "max": 6.0, "step": 0.1, "default": 3.0},
-        {"id": "vf", "label": "速度倍率 v/v圆", "min": 0.55, "max": 1.45, "step": 0.01, "default": 1.0},
+        {"id": "vf", "label": "速度倍率 v/v圆", "unit": "", "min": 0.55, "max": 1.45, "step": 0.01, "default": 1.0},
     ],
     "metrics": [
-        {"id": "shape", "label": "轨道类型", "color": "text-amber-400", "initial": "圆"},
-        {"id": "e", "label": "偏心率 e", "color": "text-cyan-400"},
-        {"id": "T", "label": "周期 T", "color": "text-emerald-400"},
-        {"id": "r", "label": "当前距离 r", "color": "text-rose-400"},
+        {"id": "shape", "label": "轨道类型"},
+        {"id": "e", "label": "偏心率 e"},
+        {"id": "T", "label": "周期 T"},
+        {"id": "r", "label": "当前距离 r"},
     ],
 }
 
 _JS = r"""
 (function(){
-  const P = window.__SCICANVAS__;
-  const cv = document.getElementById('scene');
-  const ctx = cv.getContext('2d');
-  const wrap = document.getElementById('wrap');
-  const els = {}, vals = {};
-  P.controls.forEach(function(c){
-    els[c.id] = document.getElementById(c.id);
-    vals[c.id] = document.getElementById('val_' + c.id);
-  });
-  const btnPause = document.getElementById('btnPause');
-  const btnReset = document.getElementById('btnReset');
+  'use strict';
+  var P = HOLO.P;
+  var CX = 350, CY = 200, K = 26;               // 1 单位 = 26 像素
+  var S = { x: 0, y: 0, vx: 0, vy: 0, trail: [], t: 0, muK: 100 };
 
-  let W = 800, H = 500, DPR = 1;
-  const S = { mu: 1.0, r0: 3.0, vf: 1.0, x: 3, y: 0, vx: 0, vy: 0, t: 0, run: true, trail: [], maxR: 3 };
-
-  function resize(){
-    const r = wrap.getBoundingClientRect();
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = Math.max(320, r.width); H = Math.max(220, r.height);
-    cv.width = Math.floor(W * DPR); cv.height = Math.floor(H * DPR);
-    cv.style.width = W + 'px'; cv.style.height = H + 'px';
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
-  window.addEventListener('resize', function(){ resize(); draw(); });
-  resize();
-
-  function read(){
-    S.mu = parseFloat(els.mu.value);
-    S.r0 = parseFloat(els.r0.value);
-    S.vf = parseFloat(els.vf.value);
-    vals.mu.textContent = S.mu.toFixed(1);
-    vals.r0.textContent = S.r0.toFixed(1);
-    vals.vf.textContent = S.vf.toFixed(2);
+  function start(){
+    var r0 = P.r0;
+    var mu = P.mu * 100;                         // 归一化引力常数
+    S.muK = mu;
+    S.x = r0; S.y = 0;
+    var vc = Math.sqrt(mu / r0);                 // 圆轨道速度
+    S.vx = 0; S.vy = vc * P.vf;
+    S.trail = []; S.t = 0;
   }
 
-  function reset(){
-    read();
-    S.x = S.r0; S.y = 0;
-    const vc = Math.sqrt(S.mu / S.r0);
-    S.vx = 0; S.vy = vc * S.vf;
-    S.t = 0; S.trail = []; S.maxR = S.r0 * 1.2; S.run = true;
-    btnPause.textContent = '暂停';
-    updateMetrics();
-  }
-
-  function accel(x, y){
-    const r2 = x * x + y * y;
-    const r = Math.sqrt(r2);
-    const a = -S.mu / (r2 * r);
-    return { ax: a * x, ay: a * y };
-  }
-
-  function step(dt){
-    // 速度 Verlet（辛积分，长时间稳定）
-    const a1 = accel(S.x, S.y);
-    S.x += S.vx * dt + 0.5 * a1.ax * dt * dt;
-    S.y += S.vy * dt + 0.5 * a1.ay * dt * dt;
-    const a2 = accel(S.x, S.y);
-    S.vx += 0.5 * (a1.ax + a2.ax) * dt;
-    S.vy += 0.5 * (a1.ay + a2.ay) * dt;
-    S.t += dt;
-  }
-
-  function updateMetrics(){
-    const r = Math.hypot(S.x, S.y);
-    const v2 = S.vx * S.vx + S.vy * S.vy;
-    const E = v2 / 2 - S.mu / r;
-    const h = S.x * S.vy - S.y * S.vx;
-    const e = Math.sqrt(Math.max(0, 1 + (2 * E * h * h) / (S.mu * S.mu)));
-    const set = function(id, v){ const el = document.getElementById(id); if (el) el.textContent = v; };
-
-    let shape = '椭圆';
-    if (e < 0.02) shape = '圆';
-    else if (Math.abs(E) < 2e-3) shape = '抛物线（逃逸临界）';
-    else if (E > 0) shape = '双曲线（已逃逸）';
-
-    set('m_shape', shape);
-    set('m_e', e < 9 ? e.toFixed(3) : '—');
-    if (E < 0) {
-      const a = -S.mu / (2 * E);
-      set('m_T', (2 * Math.PI * Math.sqrt((a * a * a) / S.mu)).toFixed(2) + ' ×10³s');
-    } else {
-      set('m_T', '不闭合');
+  window.reset = function(){
+    start();
+    var g = '<circle cx="' + CX + '" cy="' + CY + '" r="3" fill="rgba(56,189,248,.6)"/>';
+    for (var rr = 40; rr <= 200; rr += 40) {
+      g += '<circle cx="' + CX + '" cy="' + CY + '" r="' + rr + '" fill="none" stroke="rgba(56,189,248,.08)"/>';
     }
-    set('m_r', r.toFixed(2) + ' ×10³km');
-  }
+    g += '<line x1="60" y1="' + CY + '" x2="640" y2="' + CY + '" stroke="rgba(56,189,248,.1)"/>' +
+         '<line x1="' + CX + '" y1="20" x2="' + CX + '" y2="380" stroke="rgba(56,189,248,.1)"/>';
+    HOLO.L0(g);
+    HOLO.L1(''); HOLO.L2(''); HOLO.L3('');
+  };
 
-  function scale(){
-    return Math.min(W, H) * 0.42 / Math.max(S.maxR, 1);
-  }
-
-  function toScreen(x, y){
-    const s = scale();
-    return { x: W / 2 + x * s, y: H / 2 - y * s };
-  }
-
-  function draw(){
-    ctx.clearRect(0, 0, W, H);
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#080f1e'); bg.addColorStop(1, '#0f172a');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-
-    // 星点背景
-    ctx.fillStyle = 'rgba(148,163,184,0.25)';
-    for (let i = 0; i < 90; i++){
-      const sx = (i * 137.5) % W, sy = (i * 89.7) % H;
-      ctx.fillRect(sx, sy, 1.2, 1.2);
-    }
-
-    // 中心天体
-    const c = toScreen(0, 0);
-    const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, 26);
-    g.addColorStop(0, 'rgba(251,191,36,0.95)');
-    g.addColorStop(0.45, 'rgba(251,191,36,0.35)');
-    g.addColorStop(1, 'rgba(251,191,36,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(c.x, c.y, 26, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fbbf24';
-    ctx.beginPath(); ctx.arc(c.x, c.y, 7, 0, Math.PI * 2); ctx.fill();
-
-    // 轨迹
-    if (S.trail.length > 1){
-      ctx.beginPath();
-      for (let i = 0; i < S.trail.length; i++){
-        const p = toScreen(S.trail[i][0], S.trail[i][1]);
-        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+  window.frame = function(dt, t){
+    if (dt > 0) {
+      var steps = 6, h = dt / steps;
+      for (var i = 0; i < steps; i++) {
+        var r2 = S.x * S.x + S.y * S.y;
+        var r = Math.sqrt(r2) || 1;
+        var a = -S.muK / (r2 * r);
+        S.vx += a * S.x * h;
+        S.vy += a * S.y * h;
+        S.x += S.vx * h;
+        S.y += S.vy * h;
       }
-      ctx.strokeStyle = 'rgba(56,189,248,0.75)';
-      ctx.lineWidth = 1.6;
-      ctx.shadowBlur = 8; ctx.shadowColor = 'rgba(56,189,248,0.6)';
-      ctx.stroke();
-      ctx.shadowBlur = 0;
+      S.t += dt;
+      S.trail.push((CX + S.x * K).toFixed(1) + ',' + (CY - S.y * K).toFixed(1));
+      if (S.trail.length > 2400) S.trail.shift();
     }
 
-    // 探测器
-    const p = toScreen(S.x, S.y);
-    ctx.save();
-    ctx.shadowBlur = 14; ctx.shadowColor = '#a855f7';
-    ctx.fillStyle = '#a855f7';
-    ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
+    var px = CX + S.x * K, py = CY - S.y * K;
 
-    ctx.fillStyle = 'rgba(148,163,184,0.7)';
-    ctx.font = '11px ui-monospace, monospace';
-    ctx.fillText('t = ' + S.t.toFixed(1) + ' ×10³s', 12, 20);
-    ctx.fillText('尺度 ' + S.maxR.toFixed(1) + ' ×10³km', 12, 36);
-  }
+    HOLO.L1(
+      '<polyline points="' + S.trail.join(' ') + '" fill="none" stroke="rgba(56,189,248,.5)" stroke-width="1.6"/>' +
+      '<circle cx="' + CX + '" cy="' + CY + '" r="11" fill="url(#sphere-amber)" filter="url(#neon-glow)"/>' +
+      '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="6" fill="url(#sphere-cyan)" filter="url(#neon-glow)"/>'
+    );
 
-  var last = performance.now(), acc = 0;
-  const DT = 0.004;
-  function loop(now){
-    let dt = Math.min((now - last) / 1000, 0.1);
-    last = now;
-    if (S.run){
-      acc += dt * 40;   // 时间加速，方便观察
-      let guard = 0;
-      while (acc >= DT && guard++ < 400){ step(DT); acc -= DT; }
-      const r = Math.hypot(S.x, S.y);
-      if (r > S.maxR) S.maxR = r;
-      S.trail.push([S.x, S.y]);
-      if (S.trail.length > 1200) S.trail.shift();
-      if (r > 60 || r < 0.05){ S.run = false; }
-      updateMetrics();
-    }
-    draw();
-    requestAnimationFrame(loop);
-  }
+    var vs = 26;
+    HOLO.L2(
+      '<line x1="' + px.toFixed(1) + '" y1="' + py.toFixed(1) + '" x2="' + (px + S.vx * vs).toFixed(1) +
+        '" y2="' + (py - S.vy * vs).toFixed(1) + '" stroke="#38bdf8" stroke-width="2" marker-end="url(#ar-cyan)"/>' +
+      '<line x1="' + px.toFixed(1) + '" y1="' + py.toFixed(1) + '" x2="' + (CX + (px - CX) * 0.35).toFixed(1) +
+        '" y2="' + (CY + (py - CY) * 0.35).toFixed(1) + '" stroke="rgba(245,158,11,.55)" stroke-width="1.6" ' +
+        'stroke-dasharray="5 4" marker-end="url(#ar-amber)"/>'
+    );
 
-  Object.keys(els).forEach(function(k){ els[k].addEventListener('input', reset); });
-  btnPause.addEventListener('click', function(){
-    S.run = !S.run;
-    btnPause.textContent = S.run ? '暂停' : '继续';
-  });
-  btnReset.addEventListener('click', reset);
+    var r = Math.hypot(S.x, S.y);
+    var v2 = S.vx * S.vx + S.vy * S.vy;
+    var energy = v2 / 2 - S.muK / r;
+    var e = Math.sqrt(Math.max(0, 1 + 2 * energy * r * r / S.muK));
+    var shape = e > 1 ? '双曲线（逃逸）' : e > 0.75 ? '高椭圆' : e > 0.15 ? '椭圆' : '近圆';
+    var period = e < 1 ? 2 * Math.PI * Math.sqrt(Math.pow(P.r0, 3) / S.muK) : Infinity;
 
-  reset();
-  requestAnimationFrame(loop);
+    var lock = HOLO.highlight()
+      ? '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="24" fill="none" stroke="#10b981" stroke-width="1.4" stroke-dasharray="6 4"/>'
+      : '';
+    HOLO.L3(lock +
+      '<g transform="translate(400,24)">' +
+      '<rect x="0" y="0" width="266" height="76" fill="rgba(2,6,23,.72)" stroke="rgba(56,189,248,.35)"/>' +
+      '<text x="10" y="18" fill="#38bdf8" font-size="10" letter-spacing="1.2">ORBITAL TELEMETRY</text>' +
+      '<text x="10" y="40" fill="#e0f2fe" font-size="12">r = ' + r.toFixed(2) + '   v = ' + Math.sqrt(v2).toFixed(2) + '</text>' +
+      '<text x="10" y="60" fill="#86efac" font-size="12">E = ' + energy.toFixed(3) + '</text>' +
+      '</g>'
+    );
+
+    HOLO.metric('shape', shape);
+    HOLO.metric('e', e < 1 ? e.toFixed(3) : '≥1');
+    HOLO.metric('T', isFinite(period) ? period.toFixed(1) + ' s' : '不闭合');
+    HOLO.metric('r', r.toFixed(2));
+
+    HOLO.telemetry(Math.min(1, r / 8), Math.min(1, Math.abs(energy) / 2));
+  };
 })();
 """
 
 
 def build(params, copy):
-    body = (
-        '<div class="max-w-7xl mx-auto p-4 lg:p-6">'
-        '<header class="mb-4">'
-        f'<h1 class="text-2xl lg:text-3xl font-bold tracking-tight">{copy["title"]}</h1>'
-        f'<p class="text-slate-400 text-sm mt-1">{copy["subtitle"]}</p>'
-        f'<p class="text-slate-500 text-xs mt-2 font-mono">{copy["formula"]}</p>'
-        "</header>"
-        '<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">'
-        '<div class="lg:col-span-2 bg-slate-900/80 border border-slate-800 rounded-xl p-3">'
-        '<div class="flex items-center justify-between mb-2 px-1">'
-        '<span class="text-xs uppercase tracking-widest text-slate-500">轨道视图</span>'
-        '<div class="flex gap-2">'
-        '<button id="btnPause" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">暂停</button>'
-        '<button id="btnReset" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">重置</button>'
-        "</div></div>"
-        '<div id="wrap" class="relative w-full rounded-lg overflow-hidden" style="aspect-ratio:16/10">'
-        '<canvas id="scene" class="w-full h-full"></canvas>'
-        "</div></div>"
-        '<div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col gap-4">'
-        '<div><h2 class="text-sm font-semibold text-slate-200 mb-3">控制面板</h2>'
-        '<div class="space-y-4">' + controls_html(META, params) + "</div></div>"
-        '<div class="border-t border-slate-800 pt-3"><h2 class="text-sm font-semibold text-slate-200 mb-3">实时数据</h2>'
-        '<div class="grid grid-cols-2 gap-2">' + metrics_html(META) + "</div></div>"
-        '<div class="mt-auto text-[11px] text-slate-500 leading-relaxed bg-slate-950/40 rounded-lg p-2.5 border border-slate-800">'
-        f'<span class="text-slate-400 font-semibold">🤯 直觉挑战：</span>{copy["challenge"]}'
-        "</div></div></div></div>"
-        "<script>" + _JS + "</script>"
+    controls = [dict(c, default=params.get(c["id"], c["default"])) for c in META["controls"]]
+    return holo_shell.render(
+        {
+            "title": copy.get("title", META["title"]),
+            "subtitle": copy.get("subtitle", META["category"]),
+            "formula": copy.get("formula", META["formula"]),
+            "controls": controls,
+            "metrics": META["metrics"],
+        },
+        _JS,
     )
-    return body
