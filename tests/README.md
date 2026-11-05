@@ -26,8 +26,12 @@ node tests/run-all.mjs --list
 | 06 | 展厅清单一致性（登记的文件都在、id 不重复、降级清单无过期项） | 无 | 0.1 s |
 | 07 | 交互功能：先猜后试、双沙盒对比、刷新恢复、取消生成 | 后端 + 前端 + Chrome + Key | 15 s |
 
-**附带工具**：`node tests/check-html.mjs <某个.html>` —— 单独验证一个生成产物在真实浏览器里
-是否无报错、画布是否真的画了东西（抽查插件产物时很方便）。
+**附带工具**（不参与 `run-all`）
+
+| 命令 | 用途 |
+| :--- | :--- |
+| `node tests/check-html.mjs <file.html>` | 单独验证一个产物：是否报错、画布是否真的画了东西 |
+| `node tests/check-fps.mjs <file.html> [秒]` | 量某个实验的渲染帧率（改模板后看有没有掉帧） |
 
 ---
 
