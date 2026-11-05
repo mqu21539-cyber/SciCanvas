@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 03 · 模板渲染 + 真实浏览器验证
  *
  * 步骤：用 B 的 generator 渲染全部模板 → 逐个用 Chrome 打开 →
@@ -45,10 +45,13 @@ await withChrome(async ({ newPage }) => {
     const cdp = await newPage(`file:///${file.replace(/\\/g, '/')}`)
 
     // 等页面真正就绪再断言：新建标签后立刻取值会撞上导航竞态
+    // 全息底座是四层 SVG、旧模板是 canvas，两种都算就绪
     let ready = false
     for (let i = 0; i < 25; i++) {
       await sleep(200)
-      ready = await cdp.eval(`document.readyState === 'complete' && !!document.querySelector('canvas')`)
+      ready = await cdp.eval(
+        `document.readyState === 'complete' && (!!document.querySelector('canvas') || !!document.getElementById('l1'))`
+      )
       if (ready) break
     }
     await sleep(600) // 让 rAF 至少画几帧
@@ -58,19 +61,31 @@ await withChrome(async ({ newPage }) => {
     }
 
     const info = await cdp.eval(`(() => {
+      const sliders = document.querySelectorAll('input[type=range]').length;
+      // 老模板用 canvas，全息底座用四层 SVG——两种都要验，不能只数到示波器那块小画布
+      const layers = ['l0','l1','l2','l3'].map(id => {
+        const el = document.getElementById(id);
+        return el ? el.childElementCount : 0;
+      });
+      const svgNodes = layers.reduce((a, b) => a + b, 0);
       const c = document.querySelector('canvas');
-      if (!c) return { canvas: false };
       let painted = 0, sampled = 0;
-      try {
-        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-        for (let i = 3; i < d.length; i += 4 * 997) { sampled++; if (d[i] > 0) painted++; }
-      } catch (e) { return { canvas: true, err: String(e) }; }
-      return { canvas: true, painted, sampled, sliders: document.querySelectorAll('input[type=range]').length };
+      if (c) {
+        try {
+          const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+          for (let i = 3; i < d.length; i += 4 * 997) { sampled++; if (d[i] > 0) painted++; }
+        } catch (e) {}
+      }
+      return { painted, sampled, sliders, layers, svgNodes };
     })()`)
 
     const errs = cdp.errors()
     t.ok(`${name}: 无 JS 异常`, errs.length === 0, errs.slice(0, 1).join(' | '))
-    t.ok(`${name}: canvas 已绘制`, (info.painted || 0) > 0, `${info.painted || 0}/${info.sampled || 0}`)
+    t.ok(
+      `${name}: 画面已绘制`,
+      info.svgNodes >= 3 || info.painted > 0,
+      info.svgNodes >= 3 ? `SVG ${JSON.stringify(info.layers)}` : `canvas ${info.painted}/${info.sampled}`
+    )
     t.ok(`${name}: 滑块注入`, (info.sliders || 0) >= 2, String(info.sliders))
   }
 })

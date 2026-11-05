@@ -22,8 +22,16 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import templates
-from templates import get
+# Windows 控制台/管道默认是 GBK，公式里的 '−' 这类字符会直接把 --list 打崩。
+# 统一成 UTF-8，谁的终端都不该因为一个减号挂掉。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
+
+import templates  # noqa: E402
+from templates import get  # noqa: E402
 
 TEMPLATE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -88,6 +96,13 @@ def render_plan(plan: dict) -> str:
     mod = get(plan["template"])
     copy = {k: plan[k] for k in ("title", "subtitle", "formula", "challenge")}
     body = mod.build(plan["params"], copy)
+
+    # 全息底座（holo_shell）返回的就是一份完整 HTML；旧模板只返回 body 片段。
+    # 两种模板共存期间按内容判断，别把完整文档再套一层壳——那样浏览器会解析中断，
+    # 表现为整页空白（踩过）。
+    if body.lstrip().startswith("<!DOCTYPE html>"):
+        return body
+
     payload = json.dumps(
         {"params": plan["params"], "controls": mod.META["controls"]}, ensure_ascii=False
     )

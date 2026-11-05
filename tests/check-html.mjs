@@ -24,16 +24,28 @@ await withChrome(async ({ newPage }) => {
     }
     await sleep(700)
     const info = await cdp.eval(`(() => {
+      const sliders = document.querySelectorAll('input[type=range]').length;
+      // 全息底座用四层 SVG，旧模板用 canvas：两种都要能验，否则新模板会"假通过"
       const c = document.querySelector('canvas');
-      if (!c) return { canvas: false };
       let painted = 0, sampled = 0;
-      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-      for (let i = 3; i < d.length; i += 4 * 997) { sampled++; if (d[i] > 0) painted++; }
-      return { canvas: true, painted, sampled, sliders: document.querySelectorAll('input[type=range]').length };
+      if (c) {
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        for (let i = 3; i < d.length; i += 4 * 997) { sampled++; if (d[i] > 0) painted++; }
+      }
+      const layers = ['l0','l1','l2','l3'].map(id => {
+        const el = document.getElementById(id);
+        return el ? el.childElementCount : -1;
+      });
+      return { canvas: !!c, painted, sampled, sliders, layers };
     })()`)
     const name = file.split(/[\\/]/).pop()
+    const svgNodes = (info.layers || []).reduce((a, b) => a + Math.max(0, b), 0)
     t.ok(`${name}: 无异常`, cdp.errors().length === 0, cdp.errors().slice(0, 1).join(' | '))
-    t.ok(`${name}: 画布已绘制`, (info.painted || 0) > 0, `${info.painted}/${info.sampled}`)
+    t.ok(
+      `${name}: 画布已绘制`,
+      (info.painted || 0) > 0 || svgNodes >= 3,
+      info.layers && svgNodes >= 3 ? `SVG 层节点 ${JSON.stringify(info.layers)}` : `${info.painted}/${info.sampled} 像素`
+    )
     t.ok(`${name}: 滑块`, (info.sliders || 0) >= 2, String(info.sliders))
   }
 })

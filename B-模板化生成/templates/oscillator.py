@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
-"""模板：阻尼单摆（简谐振动 + 阻尼衰减）。"""
-from . import controls_html, metrics_html
+"""模板：阻尼单摆（全息 2.5D 版）。
+
+作者只需要写 reset()/frame() 两个函数，其余（四层舞台、示波器、子弹时间、
+滤镜、残影、靶向准星）由 holo_shell 提供。
+"""
+import os
+import sys
+
+import holo_shell
 
 META = {
     "name": "oscillator",
@@ -13,219 +20,130 @@ META = {
         {"id": "g", "label": "重力加速度 g", "unit": "m/s²", "min": 1.0, "max": 25.0, "step": 0.1, "default": 9.8},
     ],
     "metrics": [
-        {"id": "T", "label": "理论周期 T", "color": "text-cyan-400"},
-        {"id": "E", "label": "机械能 E", "color": "text-emerald-400"},
-        {"id": "th", "label": "摆角 θ", "color": "text-amber-400"},
-        {"id": "regime", "label": "状态", "color": "text-rose-400", "initial": "自由摆动"},
+        {"id": "T", "label": "理论周期 T"},
+        {"id": "E", "label": "机械能 E"},
+        {"id": "th", "label": "摆角 θ"},
+        {"id": "regime", "label": "状态"},
     ],
 }
 
 _JS = r"""
 (function(){
-  const P = window.__SCICANVAS__;
-  const cv = document.getElementById('scene');
-  const ctx = cv.getContext('2d');
-  const wrap = document.getElementById('wrap');
-  const btnPause = document.getElementById('btnPause');
-  const btnReset = document.getElementById('btnReset');
+  'use strict';
+  var P = HOLO.P;
+  var OX = 350, OY = 84;          // 悬挂点（SVG 坐标系 700x400）
+  var S = { th: 0.55, om: 0, trail: [], t: 0 };
 
-  const els = {}, vals = {};
-  P.controls.forEach(function(c){
-    els[c.id] = document.getElementById(c.id);
-    vals[c.id] = document.getElementById('val_' + c.id);
-  });
-
-  let W = 800, H = 500, DPR = 1;
-  function resize(){
-    const r = wrap.getBoundingClientRect();
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = Math.max(320, r.width);
-    H = Math.max(220, r.height);
-    cv.width = Math.floor(W * DPR);
-    cv.height = Math.floor(H * DPR);
-    cv.style.width = W + 'px';
-    cv.style.height = H + 'px';
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
-  window.addEventListener('resize', resize);
-  resize();
-
-  const S = { L: 1, c: 0.05, g: 9.8, th: 0.7, om: 0, t: 0, run: true, trail: [] };
-
-  function readParams(){
-    S.L = parseFloat(els.L.value);
-    S.c = parseFloat(els.c.value);
-    S.g = parseFloat(els.g.value);
-    vals.L.textContent = S.L.toFixed(2);
-    vals.c.textContent = S.c.toFixed(2);
-    vals.g.textContent = S.g.toFixed(1);
+  function lenPx(){ return 70 + (P.L / 3.0) * 150; }
+  function bob(){
+    var L = lenPx();
+    return { x: OX + Math.sin(S.th) * L, y: OY + Math.cos(S.th) * L, L: L };
   }
 
-  function reset(){
-    S.th = 0.7; S.om = 0; S.t = 0; S.trail = []; S.run = true;
-    btnPause.textContent = '暂停';
-    readParams();
+  function baseLayer(){
+    var L = lenPx(), b = bob();
+    var arc = '';
+    for (var deg = -40; deg <= 40; deg += 10) {
+      var rad = deg * Math.PI / 180;
+      var x1 = OX + Math.sin(rad) * (L + 12), y1 = OY + Math.cos(rad) * (L + 12);
+      var x2 = OX + Math.sin(rad) * (L + 22), y2 = OY + Math.cos(rad) * (L + 22);
+      arc += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) +
+             '" y2="' + y2.toFixed(1) + '" stroke="rgba(56,189,248,.45)" stroke-width="1.2"/>';
+    }
+    return (
+      '<circle cx="' + OX + '" cy="' + OY + '" r="5" fill="#0ea5e9"/>' +
+      '<line x1="' + (OX - 46) + '" y1="' + OY + '" x2="' + (OX + 46) + '" y2="' + OY + '" stroke="#0284c7" stroke-width="3"/>' +
+      '<line x1="' + OX + '" y1="' + OY + '" x2="' + OX + '" y2="' + (OY + L + 40) +
+        '" stroke="rgba(56,189,248,.28)" stroke-width="1" stroke-dasharray="5 5"/>' +
+      '<path d="M ' + (OX - 120) + ' ' + OY + ' A 120 120 0 0 1 ' + (OX + 120) + ' ' + OY +
+        '" fill="none" stroke="rgba(56,189,248,.18)" stroke-width="1" stroke-dasharray="3 5"/>' +
+      arc
+    );
   }
 
-  Object.keys(els).forEach(function(k){ els[k].addEventListener('input', readParams); });
-  btnPause.addEventListener('click', function(){
-    S.run = !S.run;
-    btnPause.textContent = S.run ? '暂停' : '继续';
-    btnPause.classList.toggle('bg-amber-600', !S.run);
-  });
-  btnReset.addEventListener('click', reset);
+  function hudLayer(b){
+    var lock = HOLO.highlight()
+      ? '<circle cx="' + b.x.toFixed(1) + '" cy="' + b.y.toFixed(1) + '" r="34" fill="none" ' +
+        'stroke="#10b981" stroke-width="1.4" stroke-dasharray="6 4"/>' +
+        '<text x="' + (b.x + 40).toFixed(1) + '" y="' + (b.y - 26).toFixed(1) +
+        '" fill="#10b981" font-size="10">TARGET: ' + String(HOLO.highlight()).toUpperCase() + '</text>'
+      : '';
+    return (
+      lock +
+      '<g transform="translate(24,24)">' +
+      '<rect x="0" y="0" width="196" height="74" fill="rgba(2,6,23,.72)" stroke="rgba(56,189,248,.35)"/>' +
+      '<text x="10" y="20" fill="#38bdf8" font-size="10" letter-spacing="1.5">PENDULUM TELEMETRY</text>' +
+      '<text x="10" y="42" fill="#e0f2fe" font-size="12">θ = ' + (S.th * 180 / Math.PI).toFixed(1) + '°</text>' +
+      '<text x="10" y="62" fill="#86efac" font-size="12">ω = ' + S.om.toFixed(2) + ' rad/s</text>' +
+      '</g>'
+    );
+  }
 
-  // 半隐式欧拉，固定步长，保证不同帧率下轨迹一致
-  function step(dt){
-    const alpha = -(S.g / S.L) * Math.sin(S.th) - S.c * S.om;
+  window.reset = function(){
+    S.th = 0.55; S.om = 0; S.trail = []; S.t = 0;
+    HOLO.L0(baseLayer());
+    HOLO.L1(''); HOLO.L2(''); HOLO.L3('');
+  };
+
+  window.frame = function(dt, t){
+    var g = P.g, L = P.L, c = P.c;
+    var alpha = -(g / Math.max(0.2, L)) * Math.sin(S.th) - c * S.om;
     S.om += alpha * dt;
     S.th += S.om * dt;
     S.t += dt;
-  }
 
-  function geometry(){
-    const pxPerM = (H * 0.62) / 3.0;
-    const r = Math.min(S.L * pxPerM, H * 0.62);
-    return { px: W / 2, py: H * 0.18, r: r };
-  }
+    var b = bob();
 
-  var acc = 0, last = performance.now();
-  const FIXED = 1 / 480;
-
-  function loop(now){
-    let dt = (now - last) / 1000;
-    last = now;
-    if (dt > 0.1) dt = 0.1;
-    if (S.run){
-      acc += dt;
-      while (acc >= FIXED){ step(FIXED); acc -= FIXED; }
+    // L1：摆线与摆球（拟物渐变球）
+    if (dt > 0) {
+      S.trail.push(b.x.toFixed(1) + ',' + b.y.toFixed(1));
+      if (S.trail.length > 90) S.trail.shift();
     }
-    render();
-    requestAnimationFrame(loop);
-  }
+    HOLO.L1(
+      '<polyline points="' + S.trail.join(' ') + '" fill="none" stroke="rgba(56,189,248,.35)" stroke-width="2"/>' +
+      '<line x1="' + OX + '" y1="' + OY + '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) +
+        '" stroke="#7dd3fc" stroke-width="2.4"/>' +
+      '<circle cx="' + b.x.toFixed(1) + '" cy="' + b.y.toFixed(1) + '" r="15" fill="url(#sphere-cyan)" filter="url(#neon-glow)"/>'
+    );
 
-  function render(){
-    const g = geometry();
-    const bx = g.px + Math.sin(S.th) * g.r;
-    const by = g.py + Math.cos(S.th) * g.r;
+    // L2：切向速度矢量
+    var vx = Math.cos(S.th) * S.om * b.L * 0.28;
+    var vy = -Math.sin(S.th) * S.om * b.L * 0.28;
+    HOLO.L2(
+      '<line x1="' + b.x.toFixed(1) + '" y1="' + b.y.toFixed(1) + '" x2="' + (b.x + vx).toFixed(1) +
+        '" y2="' + (b.y + vy).toFixed(1) + '" stroke="#38bdf8" stroke-width="2.4" marker-end="url(#ar-cyan)"/>' +
+      '<text x="' + (b.x + vx + 6).toFixed(1) + '" y="' + (b.y + vy - 6).toFixed(1) +
+        '" fill="#38bdf8" font-size="11">v</text>'
+    );
 
-    ctx.clearRect(0, 0, W, H);
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#0b1220');
-    bg.addColorStop(1, '#0f172a');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, W, H);
+    HOLO.L3(hudLayer(b));
 
-    // 网格
-    ctx.strokeStyle = 'rgba(56,189,248,0.05)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < W; x += 48){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-    for (let y = 0; y < H; y += 48){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    // 数据面板 + 示波器
+    var T = 2 * Math.PI * Math.sqrt(Math.max(0.2, L) / Math.max(0.1, g));
+    var E = 0.5 * L * S.om * S.om + g * L * (1 - Math.cos(S.th));
+    HOLO.metric('T', T.toFixed(2) + ' s');
+    HOLO.metric('E', E.toFixed(2) + ' J/kg');
+    HOLO.metric('th', (S.th * 180 / Math.PI).toFixed(1) + '°');
+    var regime = c > 1.6 * Math.sqrt(g / Math.max(0.2, L)) ? '过阻尼'
+      : c > 0.98 * Math.sqrt(g / Math.max(0.2, L)) ? '临界阻尼'
+      : c > 0.02 ? '欠阻尼' : '无阻尼';
+    HOLO.metric('regime', regime);
 
-    // 平衡位置虚线
-    ctx.save();
-    ctx.setLineDash([5, 5]);
-    ctx.strokeStyle = 'rgba(148,163,184,0.25)';
-    ctx.beginPath();
-    ctx.moveTo(g.px, g.py);
-    ctx.lineTo(g.px, g.py + g.r + 24);
-    ctx.stroke();
-    ctx.restore();
-
-    // 轨迹
-    if (S.run){
-      S.trail.push([bx, by]);
-      if (S.trail.length > 240) S.trail.shift();
-    }
-    ctx.save();
-    ctx.lineWidth = 1.4;
-    for (let i = 1; i < S.trail.length; i++){
-      const a = (i / S.trail.length) * 0.5;
-      ctx.strokeStyle = 'rgba(168,85,247,' + a.toFixed(3) + ')';
-      ctx.beginPath();
-      ctx.moveTo(S.trail[i-1][0], S.trail[i-1][1]);
-      ctx.lineTo(S.trail[i][0], S.trail[i][1]);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // 支架 + 摆杆
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(g.px - 42, g.py); ctx.lineTo(g.px + 42, g.py); ctx.stroke();
-
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(g.px, g.py); ctx.lineTo(bx, by); ctx.stroke();
-
-    // 摆球
-    ctx.save();
-    ctx.shadowBlur = 18;
-    ctx.shadowColor = '#38bdf8';
-    ctx.fillStyle = '#38bdf8';
-    ctx.beginPath(); ctx.arc(bx, by, 11, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-
-    // 角度标注
-    ctx.save();
-    ctx.strokeStyle = 'rgba(251,191,36,0.75)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(g.px, g.py, 52, Math.PI / 2, Math.PI / 2 + S.th, S.th < 0);
-    ctx.stroke();
-    ctx.restore();
-
-    // 指标
-    const T = 2 * Math.PI * Math.sqrt(S.L / S.g);
-    const E = 0.5 * S.L * S.L * S.om * S.om + S.g * S.L * (1 - Math.cos(S.th));
-    const setTxt = function(id, v){ const el = document.getElementById(id); if (el) el.textContent = v; };
-    setTxt('m_T', T.toFixed(2) + ' s');
-    setTxt('m_E', E.toFixed(2) + ' J/kg');
-    setTxt('m_th', (S.th * 180 / Math.PI).toFixed(1) + '°');
-
-    // 阻尼状态判定
-    const w0 = Math.sqrt(S.g / S.L);
-    let regime = '欠阻尼';
-    if (S.c >= 2 * w0) regime = '过阻尼';
-    else if (Math.abs(S.c - 2 * w0) < 0.05) regime = '临界阻尼';
-    else if (S.c === 0) regime = '无阻尼（理想）';
-    setTxt('m_regime', regime);
-  }
-
-  reset();
-  requestAnimationFrame(loop);
+    HOLO.telemetry(Math.min(1, Math.abs(S.om) / 5), Math.min(1, (1 - Math.cos(S.th)) / 2));
+  };
 })();
 """
 
 
 def build(params, copy):
-    """params: 参数覆盖；copy: 文案（title/subtitle/challenge）。"""
-    body = (
-        '<div class="max-w-7xl mx-auto p-4 lg:p-6">'
-        '<header class="mb-4">'
-        f'<h1 class="text-2xl lg:text-3xl font-bold tracking-tight">{copy["title"]}</h1>'
-        f'<p class="text-slate-400 text-sm mt-1">{copy["subtitle"]}</p>'
-        f'<p class="text-slate-500 text-xs mt-2 font-mono">{copy["formula"]}</p>'
-        "</header>"
-        '<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">'
-        '<div class="lg:col-span-2 bg-slate-900/80 border border-slate-800 rounded-xl p-3">'
-        '<div class="flex items-center justify-between mb-2 px-1">'
-        '<span class="text-xs uppercase tracking-widest text-slate-500">仿真视窗</span>'
-        '<div class="flex gap-2">'
-        '<button id="btnPause" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">暂停</button>'
-        '<button id="btnReset" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">重置</button>'
-        "</div></div>"
-        '<div id="wrap" class="relative w-full rounded-lg overflow-hidden" style="aspect-ratio:16/10">'
-        '<canvas id="scene" class="w-full h-full"></canvas>'
-        "</div></div>"
-        '<div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col gap-4">'
-        '<div><h2 class="text-sm font-semibold text-slate-200 mb-3">控制面板</h2>'
-        '<div class="space-y-4">' + controls_html(META, params) + "</div></div>"
-        '<div class="border-t border-slate-800 pt-3"><h2 class="text-sm font-semibold text-slate-200 mb-3">实时数据</h2>'
-        '<div class="grid grid-cols-2 gap-2">' + metrics_html(META) + "</div></div>"
-        '<div class="mt-auto text-[11px] text-slate-500 leading-relaxed bg-slate-950/40 rounded-lg p-2.5 border border-slate-800">'
-        f'<span class="text-slate-400 font-semibold">🤯 直觉挑战：</span>{copy["challenge"]}'
-        "</div></div></div></div>"
-        "<script>" + _JS + "</script>"
-    )
-    return body
+    controls = [
+        dict(c, default=params.get(c["id"], c["default"])) for c in META["controls"]
+    ]
+    spec = {
+        "title": copy.get("title", META["title"]),
+        "subtitle": copy.get("subtitle", META["category"]),
+        "formula": copy.get("formula", META["formula"]),
+        "controls": controls,
+        "metrics": META["metrics"],
+    }
+    return holo_shell.render(spec, _JS)
