@@ -1,12 +1,22 @@
 import difflib
 import json
+import logging
 import os
 import re
 
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from prompts import CODER_SYSTEM_PROMPT, FIXER_SYSTEM_PROMPT, PLANNER_SYSTEM_PROMPT
+import holo_build
+from prompts import (
+    CODER_SYSTEM_PROMPT,
+    FIXER_SYSTEM_PROMPT,
+    HOLO_CODER_PROMPT,
+    HOLO_PLANNER_PROMPT,
+    PLANNER_SYSTEM_PROMPT,
+)
+
+logger = logging.getLogger("scicanvas")
 
 load_dotenv()
 
@@ -49,10 +59,13 @@ def clean_json_output(raw_text: str) -> dict:
 
 
 def generate_lab(user_concept: str, on_stage=None) -> dict:
-    """Planner -> Coder 双 Agent 流水线。
+    """Planner -> Coder 双 Agent 流水线（全息 2.5D 契约）。
 
-    on_stage: 可选回调 on_stage("planner") / on_stage("coder")，
-    供 SSE 流式接口在两次模型调用之间推送进度。
+    Coder 现在只写约 50 行 JS（reset/frame），由 holo_build 拼进四层 SVG 底座。
+    片段不合契约（模型跑去写整份 HTML、括号不平衡等）时，自动回落到老的
+    「模型写整份 HTML」路径——宁可慢，不能出不来东西。
+
+    on_stage: 可选回调 on_stage("planner"/"coder"/"fallback")，供 SSE 推进度。
     """
 
     def stage(name):
@@ -62,12 +75,12 @@ def generate_lab(user_concept: str, on_stage=None) -> dict:
             except Exception:  # noqa: BLE001 - 进度推送失败不该影响生成
                 pass
 
-    # 1. Planner Agent 生成结构化实验蓝图
+    # 1. Planner Agent 生成结构化实验蓝图（含参数胶囊与四层分工）
     stage("planner")
     plan_res = get_client().chat.completions.create(
         model="deepseek-chat",
         messages=[
-            {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
+            {"role": "system", "content": HOLO_PLANNER_PROMPT},
             {"role": "user", "content": f"请为以下科学概念或论文段落设计2D互动实验：\n{user_concept}"},
         ],
         response_format={"type": "json_object"},
@@ -76,17 +89,35 @@ def generate_lab(user_concept: str, on_stage=None) -> dict:
     plan_json_str = plan_res.choices[0].message.content
     plan_data = clean_json_output(plan_json_str)
 
-    # 2. Coder Agent 将蓝图转化为单文件交互式 HTML
+    # 2. Coder Agent 只写物理逻辑
     stage("coder")
     code_res = get_client().chat.completions.create(
         model="deepseek-chat",
         messages=[
-            {"role": "system", "content": CODER_SYSTEM_PROMPT},
-            {"role": "user", "content": f"请严格按照以下 JSON 实验蓝图编写单文件 HTML 交互仿真代码：\n{plan_json_str}"},
+            {"role": "system", "content": HOLO_CODER_PROMPT},
+            {"role": "user", "content": f"实验蓝图（JSON）：\n{plan_json_str}\n\n请输出 reset/frame 片段。"},
         ],
         temperature=0.2,
     )
-    html_code = clean_html_output(code_res.choices[0].message.content)
+    js_snippet = code_res.choices[0].message.content or ""
+    coder_mode = "holo"
+    try:
+        html_code = holo_build.build(plan_data, js_snippet)
+    except holo_build.HoloError as e:
+        logger.warning("全息片段不合格（%s），回落整份 HTML 生成", e)
+        stage("fallback")
+        coder_mode = "full"
+        legacy = get_client().chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": CODER_SYSTEM_PROMPT},
+                {"role": "user", "content": f"请严格按照以下 JSON 实验蓝图编写单文件 HTML 交互仿真代码：\n{plan_json_str}"},
+            ],
+            temperature=0.2,
+        )
+        html_code = clean_html_output(legacy.choices[0].message.content)
+
+    return {"plan": plan_data, "html": html_code, "coder_mode": coder_mode}
 
     return {"plan": plan_data, "html": html_code}
 

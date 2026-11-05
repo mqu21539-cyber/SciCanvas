@@ -41,6 +41,7 @@ const TESTS = [
   { id: '06', name: '展厅清单一致性', cmd: 'node', file: '06-gallery.mjs', slow: false },
   { id: '07', name: '交互功能（猜卡 / 双沙盒）', cmd: 'node', file: '07-ui-features.mjs', slow: true, needsServices: true },
   { id: '08', name: 'arXiv 摘要直读', cmd: PY, file: '08-arxiv.py', slow: true, needsServices: true },
+  { id: '09', name: '全息契约（片段校验与拼装）', cmd: PY, file: '09-holo-contract.py', slow: false },
 ]
 
 if (args.includes('--list')) {

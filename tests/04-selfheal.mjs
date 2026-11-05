@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 04 · 自愈链路端到端（真实浏览器 + 真实后端）
  *
  * 流程：打开前端 → 触发一次生成 → 向页面注入 SCICANVAS_ERROR →
@@ -21,6 +21,10 @@ const GEN_TIMEOUT = Number(process.env.SCICANVAS_GEN_TIMEOUT || 150)
 await withChrome(async ({ newPage }) => {
   const cdp = await newPage('http://localhost:3000')
   if (!t.ok('页面已水合', await waitHydrated(cdp))) return
+
+  // 尽早开网络监听：生成的实验有可能自己就报错并自动触发一次修复，
+  // 等到注入错误时再开启就会漏掉那次请求（踩过，表现为"0 次请求"但确实修好了）。
+  await cdp.send('Network.enable')
 
   // 预设按钮直接绑 handleGenerate；命中缓存时 50ms 就出结果，
 // 所以"是否启动"要同时认「loading 态」和「沙盒已出现」。
@@ -53,18 +57,20 @@ await withChrome(async ({ newPage }) => {
 
   const info = await cdp.eval(`(() => {
     const src = document.querySelector('iframe').getAttribute('srcdoc') || '';
+    // 全息底座的滑块是 JS 动态创建的，静态 HTML 里搜不到 type="range"；
+    // 用「四层 SVG + HOLO API」当作同等判据，别把新架构判成产物缺件。
+    const holo = src.includes('id="l1"') && src.includes('HOLO.L1');
     return { len: src.length, canvas: src.includes('<canvas'), onerror: src.includes('window.onerror'),
-             sliders: (src.match(/type="range"/g) || []).length };
+             holo, sliders: (src.match(/type="range"/g) || []).length };
   })()`)
-  t.ok('产物含 canvas', info.canvas)
+  t.ok('产物含画布或全息四层', info.canvas || info.holo, info.holo ? 'holo' : 'canvas')
   t.ok('产物含 onerror 桥', info.onerror)
-  t.ok('产物含滑块', info.sliders >= 2, String(info.sliders))
+  t.ok('产物含可交互控件', info.holo || info.sliders >= 2, `${info.sliders} 个静态滑块`)
   t.ok('生成过程无页面异常', cdp.errors().length === 0, cdp.errors().slice(0, 1).join(' | '))
 
   // 触发真实页面的自愈监听
   const before = info.len
   const t0 = Date.now()
-  await cdp.send('Network.enable')
   await cdp.eval(`window.postMessage({ type: 'SCICANVAS_ERROR', message: 'ReferenceError: __e2e_undefined is not defined', line: 42 }, '*')`)
 
   // 断言 1：页面真的向 /api/fix 发了请求（这是"链路通"的直接证据）

@@ -76,6 +76,13 @@ class _Completions:
             }, ensure_ascii=False))
         if "创意前端架构师" in system:
             return _Resp("```html\n<!DOCTYPE html><html><body><canvas></canvas></body></html>\n```")
+        if "SVG 矢量动画" in system:
+            # 全息契约：Coder 只返回一段 JS
+            return _Resp(
+                "window.reset = function(){ HOLO.L0('<line x1=\"0\" y1=\"200\" x2=\"700\" y2=\"200\"/>'); };\n"
+                "window.frame = function(dt, t){ HOLO.L1('<circle cx=\"350\" cy=\"200\" r=\"8\"/>'); HOLO.L2(''); "
+                "HOLO.L3(''); HOLO.telemetry(0.5); };"
+            )
         return _Resp("```html\n<!DOCTYPE html><html><body>fixed</body></html>\n```")
 
 
@@ -97,9 +104,40 @@ out = agents.generate_lab("演示傅里叶级数合成方波")
 print("plan.title =", out["plan"]["title"])
 print("plan.controls =", len(out["plan"]["controls"]))
 print("html 是否已剥离代码围栏:", out["html"].startswith("<!DOCTYPE html>") and "```" not in out["html"])
+print("coder_mode =", out.get("coder_mode"))
 assert out["plan"]["title"] == "傅里叶合成方波"
 assert out["html"].startswith("<!DOCTYPE html>") and "```" not in out["html"]
+assert out["coder_mode"] == "holo", out.get("coder_mode")
+assert 'id="l1"' in out["html"], "全息底座应包含四层 SVG"
 assert len(stub.calls) == 2, stub.calls
+
+# Coder 违规时必须自动回落整份 HTML（这条曾经把真实生成卡死过）
+class BadStub(StubClient):
+    pass
+
+
+bad = BadStub()
+bad.chat = _Chat(bad)
+_orig = _Completions.create
+
+
+def _bad_create(self, **kwargs):
+    system = kwargs["messages"][0]["content"]
+    if "SVG 矢量动画" in system:
+        self.outer.calls.append(kwargs)
+        return _Resp("<!DOCTYPE html><html><body>我偏要写整份文档</body></html>")
+    return _orig(self, **kwargs)
+
+
+_Completions.create = _bad_create
+agents.get_client = lambda: bad  # type: ignore[assignment]
+fallback_out = agents.generate_lab("演示傅里叶级数合成方波")
+_Completions.create = _orig
+agents.get_client = lambda: stub  # type: ignore[assignment]
+print("回落后 coder_mode =", fallback_out.get("coder_mode"), "· 调用次数 =", len(bad.calls))
+assert fallback_out["coder_mode"] == "full", fallback_out.get("coder_mode")
+assert fallback_out["html"].startswith("<!DOCTYPE html>")
+assert len(bad.calls) == 3, len(bad.calls)
 
 fixed = agents.fix_lab_code("<html>broken</html>", "ReferenceError: x is not defined")
 print("fix 输出:", fixed[:60])

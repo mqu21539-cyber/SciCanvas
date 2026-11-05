@@ -199,6 +199,7 @@ def _generate(prompt: str, strategy: str = "auto", emit=None) -> dict:
         "mode": "agent",
         "plan": out["plan"],
         "html": out["html"],
+        "coder_mode": out.get("coder_mode", "holo"),
         "elapsed_ms": int((time.time() - started) * 1000),
         **meta,
     }

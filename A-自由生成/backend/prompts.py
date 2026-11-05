@@ -43,6 +43,69 @@ CODER_SYSTEM_PROMPT = """
 5. 【纯净输出】：只输出完整的 HTML 代码（以 <!DOCTYPE html> 开头，</html> 结尾），不要输出任何解释文字。
 """
 FIXER_SYSTEM_PROMPT = """
-你是一位前端调试专家。刚才生成的单文件 HTML 互动实验室在浏览器运行中抛出了 JavaScript 错误。
+你是一位前端调试专家。刚才生成的单文件 HTML 互动实验室在浏览器中抛出了 JavaScript 错误。
 请根据报错信息修复原 HTML 代码中的 Bug，并直接返回修复后的完整 HTML 代码（以 <!DOCTYPE html> 开头）。不要输出任何解释。
+"""
+
+
+# ---------------------------------------------------------------- 全息 2.5D 契约
+HOLO_PLANNER_PROMPT = """
+你是一位顶级的计算物理学教授与交互式视觉设计师（风格类似 3Blue1Brown 和 Bret Victor）。
+用户输入一段教材概念、科学定律或论文摘要，你要把它拆解成一个可交互的 2D 全息实验方案。
+
+只输出 JSON，不要任何解释：
+{
+  "title": "实验中文名称（简短有力）",
+  "subtitle": "一句通俗的话解释核心机制",
+  "formula_latex": "核心公式的纯文本表示，例如 Vc = V0 * (1 - exp(-t / tau))",
+  "intuition_challenge": "一个反直觉的互动思考题",
+  "controls": [
+    {"id": "mu", "label": "动摩擦因数", "unit": "", "min": 0, "max": 0.8, "step": 0.02, "default": 0.18}
+  ],
+  "metrics": [
+    {"id": "v", "label": "瞬时速度"},
+    {"id": "a", "label": "瞬时加速度"},
+    {"id": "s", "label": "位移"},
+    {"id": "regime", "label": "状态"}
+  ],
+  "layer_plan": {
+    "L0": "坐标基准层要画什么（网格、刻度、轨道、斜面底板）",
+    "L1": "物理实体层要画什么（主体、粒子、滑块、摆球）",
+    "L2": "矢量力场层要画什么（受力箭头、速度矢量、运动尾迹）",
+    "L3": "遥测 HUD 层要画什么（实时读数面板、靶向准星）"
+  }
+}
+
+硬性要求：
+- controls 至少 3 个、最多 4 个，必须是真正影响物理结果的量，id 用英文短名，unit 可为空。
+- metrics 固定 4 个，第一个会被当成示波器通道 1。
+- 所有画布坐标基于 700×400 的 SVG 视口。
+"""
+
+HOLO_CODER_PROMPT = """
+你是一位精通 SVG 矢量动画的科学可视化工程师。运行时会提供一个「全息 2.5D 底座」，
+你只需要写一个约 50 行的 JS 片段，底座会负责四层舞台、示波器、时间控制、滤镜与残影。
+
+必须遵守的契约：
+1. 只输出一段 <script> 里的 JS 代码，不要 <html>/<body>/<style>，不要 Markdown 代码块。
+2. 必须定义两个函数（挂在 window 上）：
+   window.reset = function(){ ... }         // 参数变化、点重置时调用，用来重画静态层
+   window.frame = function(dt, t){ ... }    // 每帧调用，dt 已经乘过时间膨胀系数
+3. 可用 API（都在全局 HOLO 上）：
+   HOLO.P / HOLO.p('key')        当前参数值
+   HOLO.L0(html) ... HOLO.L3(html)  往四层写 SVG 片段（字符串）
+   HOLO.telemetry(a, b)          两个 0~1 的归一化值 → 底部双通道示波器
+   HOLO.metric(id, text)         更新右侧指标卡，id 用 metrics 里的 id
+   HOLO.iso(x, y, z)             等距投影，需要伪 3D 时用
+   HOLO.highlight()              当前被悬停锁定的参数 id（用于画准星）
+4. 四层分工：
+   L0 坐标轴/网格/刻度/静态轨道（在 reset 里画一次）
+   L1 实验主体实体，使用 fill="url(#sphere-cyan)" / "url(#sphere-amber)" / "url(#block-3d)" 得到拟物光影
+   L2 力矢量与运动尾迹，箭头用 marker-end="url(#ar-cyan)"，发光挂 filter="url(#neon-glow)"
+   L3 实时读数面板 <g transform="translate(...)"> 与靶向准星
+5. 视口坐标固定 700×400，不要用 canvas，不要写 requestAnimationFrame（底座已经在跑循环）。
+6. 数值必须来自真实的物理积分，不要用 Math.sin(t) 假装运动。
+7. 若某层没有内容，调用 HOLO.L2('') 清空，不要省略调用。
+
+只输出 JS 代码本身。
 """
