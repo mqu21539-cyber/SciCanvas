@@ -80,6 +80,19 @@ python generator.py --text "演示单摆阻尼振动" --out out/demo.html   # �
 
 ---
 
+## 回归测试
+
+```bash
+node tests/run-all.mjs          # 全量（2–3 分钟）
+node tests/run-all.mjs --fast   # 只跑不花钱的快速项
+node tests/run-all.mjs --only 04
+```
+
+六个用例覆盖：后端冒烟、插件契约、混合路由、模板渲染、自愈链路、前端徽标。
+缺环境的用例会自动 SKIP 而不是误报失败。详见 [tests/README](tests/README.md)。
+
+---
+
 ## 当前状态
 
 | 模块 | 状态 |
@@ -87,9 +100,9 @@ python generator.py --text "演示单摆阻尼振动" --out out/demo.html   # �
 | A · 双 Agent 生成 | ✅ 5 次真实调用全部成功，产物可运行 |
 | A · 前端工作台 | ✅ `next build` 通过，三阶段进度条 + 引擎徽标 |
 | A · 静态展厅 | ✅ 4 个实验（3 个由模型现场生成） |
-| A · 自愈闭环 | ✅ 真实 Chrome 端到端验证：报错 → /api/fix → 重渲染（9/9） |
-| A · dsh 插件 | ✅ 按 dsh 真实契约重写（`ctx.tools` + `defineTool`），契约自测 24/24 |
-| 混合路由 | ✅ 模板命中 1.3s，未命中回落 20–27s（4/4） |
-| B · 生成器 + 模板 | ✅ 6 个模板，真实浏览器验证 28/28 |
+| A · 自愈闭环 | ✅ 真实 Chrome 端到端验证：报错 → /api/fix → 重渲染 |
+| A · dsh 插件 | ✅ 按 dsh 真实契约重写（`ctx.tools` + `defineTool`），契约自测全过 |
+| 混合路由 | ✅ 模板命中 1.3–1.9s，未命中回落 20–27s |
+| B · 生成器 + 模板 | ✅ 6 个模板，真实浏览器逐页验证 |
 
 细节与证据见 [技术可行性评估](docs/技术可行性评估.md)。

@@ -5,12 +5,17 @@
     python smoke_test.py
 """
 import json
+import logging
 import os
 
 from fastapi.testclient import TestClient
 
 import agents
 import main
+
+# 测试会故意触发一次 500，把日志噪音压掉，避免 CI 上看起来像真失败
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("scicanvas").setLevel(logging.CRITICAL)
 
 client = TestClient(main.app)
 routes = sorted({r.path for r in main.app.routes if hasattr(r, "path")})
