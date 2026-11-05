@@ -1,0 +1,9 @@
+# DeepSeek Harness 运行时插件挂载配置
+# 注意：cordis.yml 的字段名与插件加载方式请以你本机 dsh 版本为准（见 docs/技术可行性评估.md）
+plugins:
+  # 挂载本地开发的 SciCanvas 插件
+  ./dsh-plugin-scicanvas/lib:
+    backendUrl: "http://127.0.0.1:8000"
+    deepseekApiKey: "${DEEPSEEK_API_KEY}"
+    outputDir: "./scicanvas-labs"
+    autoOpenBrowser: true

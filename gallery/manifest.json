@@ -1,0 +1,10 @@
+[
+  {
+    "id": "doppler-sonic-boom",
+    "title": "🌊 多普勒效应与马赫锥音爆临界仿真",
+    "category": "经典物理 / 波动学",
+    "formula": "f' = f · (v ± v_o) / (v ∓ v_s)",
+    "challenge": "当声源移动速度达到 1.0 马赫（等于波速）时，迎面波前会发生什么几何突变？把速度滑块拉到 1.2 马赫观察马赫锥！",
+    "file": "./labs/doppler-sonic-boom.html"
+  }
+]

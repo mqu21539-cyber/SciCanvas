@@ -1,0 +1,27 @@
+# --- secrets ---
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# --- python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# --- node ---
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# --- generated labs & plugin build ---
+scicanvas-labs/
+dsh-plugin-scicanvas/lib/
+
+# --- os / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

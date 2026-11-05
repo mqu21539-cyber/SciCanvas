@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SciCanvas Live Studio — 课本与论文秒变 2D 互动实验室</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+  <!-- 顶部导航栏 -->
+  <header class="border-b border-slate-800 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 bg-slate-900/70 backdrop-blur">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">🎛️</span>
+      <div>
+        <h1 class="text-lg font-bold bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-transparent">
+          SciCanvas Live Gallery
+        </h1>
+        <p class="text-[11px] text-slate-400">Turn textbook concepts & arXiv papers into interactive 2D labs</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2.5">
+      <button id="openByokBtn" class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-xs font-semibold shadow">
+✨ 在线生成新实验 (BYOK)
+      </button>
+      <button id="downloadBtn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs">
+⬇️ 下载当前 HTML
+      </button>
+      <a href="https://github.com/your-username/SciCanvas" target="_blank" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium">
+ GitHub 源码
+      </a>
+    </div>
+  </header>
+  <!-- 主体布局 -->
+  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 p-5">
+    <!-- 左侧精选实验列表 + 挑战说明 -->
+    <aside class="lg:col-span-3 flex flex-col gap-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">🎯 精选交互实验室 (免配置试玩)</h2>
+        <div id="labList" class="space-y-2"></div>
+      </div>
+      <div id="labMetaCard" class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+        <div class="text-xs text-cyan-400 font-semibold" id="metaCategory">经典物理</div>
+        <h3 class="text-sm font-bold text-slate-100" id="metaTitle">加载中...</h3>
+        <div class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 font-mono text-xs text-indigo-300" id="metaFormula"></div>
+        <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-200 leading-relaxed" id="metaChallenge"></div>
+      </div>
+    </aside>
+    <!-- 右侧实时沙盒画布 -->
+    <section class="lg:col-span-9 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col min-h-[600px]">
+      <iframe id="sandboxFrame" class="w-full flex-1 border-0 bg-slate-950" sandbox="allow-scripts"></iframe>
+    </section>
+  </main>
+  <!-- 浏览器直连生成弹窗 (BYOK Serverless Mode) -->
+  <div id="byokModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center">
+        <h3 class="text-base font-bold text-cyan-400">🧪 浏览器直连生成 2D 实验室 (Serverless BYOK)</h3>
+        <button id="closeByokBtn" class="text-slate-400 hover:text-white text-sm"></button>
+      </div>
+      <p class="text-xs text-slate-400 leading-relaxed">
+      </p>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs text-slate-300 block mb-1">DeepSeek API Key:</label>
+          <input id="apiKeyInput" type="password" placeholder="sk-..." class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-200" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-300 block mb-1">输入你想生成的科学概念或公式:</label>
+          <textarea id="customPromptInput" rows="4" class="w-full rounded-lg bg-slate-950 border border-slate-800 p-3 text-xs text-slate-200" placeholder="例如：演示傅里叶级数如何通过多个不同频率的旋转圆（本轮）叠加合成方波，提供圆的数量（1-15）与角速度滑块..."></textarea>
+        </div>
+      </div>
+      <button id="runByokBtn" class="w-full py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-xs font-semibold">
+⚡ 立即调用 DeepSeek 生成并渲染
+      </button>
+    </div>
+  </div>
+  <script>
+    const FALLBACK_LABS = [
+      {
+        id: "doppler-sonic-boom",
+        title: " 多普勒效应与马赫锥音爆临界仿真",
+        category: "经典物理 / 波动学",
+        formula: "f' = f · (v ± v_o) / (v ∓ v_s)",
+        challenge: "当声源移速达到 1.0 马赫时迎面波前会发生什么突变？拉到 1.3 马赫观察激波马赫锥！",
+        file: "./labs/doppler-sonic-boom.html"
+      }
+    ];
+    let labs = [];
+    let currentHtmlContent = "";
+    let currentTitle = "scicanvas-lab";
+    const frame = document.getElementById("sandboxFrame");
+    const labListEl = document.getElementById("labList");
+    async function loadManifest() {
+      try {
+        const res = await fetch("./manifest.json");
+        labs = res.ok ? await res.json() : FALLBACK_LABS;
+      } catch {
+        labs = FALLBACK_LABS;
+      }
+      renderLabList();
+      if (labs.length > 0) selectLab(0);
+    }
+    function renderLabList() {
+      labListEl.innerHTML = "";
+      labs.forEach((lab, idx) => {
+        const btn = document.createElement("button");
+        btn.className = "w-full text-left px-3 py-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs transition flex flex-col gap-1";
+        btn.innerHTML = `<span class="font-semibold text-slate-200">${lab.title}</span><span class="text-[11px] text-slate-500">${lab.category}</span>`;
+        btn.onclick = () => selectLab(idx);
+        labListEl.appendChild(btn);
+      });
+    }
+    async function selectLab(index) {
+      const lab = labs[index];
+      currentTitle = lab.id;
+      document.getElementById("metaCategory").textContent = lab.category;
+      document.getElementById("metaTitle").textContent = lab.title;
+      document.getElementById("metaFormula").textContent = " " + lab.formula;
+      document.getElementById("metaChallenge").textContent = " 直觉挑战：" + lab.challenge;
+      const res = await fetch(lab.file);
+      currentHtmlContent = await res.text();
+      frame.srcdoc = currentHtmlContent;
+    }
+    // 下载当前实验单文件 HTML
+    document.getElementById("downloadBtn").onclick = () => {
+      if (!currentHtmlContent) return;
+      const blob = new Blob([currentHtmlContent], { type: "text/html" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${currentTitle}.html`;
+      a.click();
+    };
+    // BYOK 在线生成逻辑
+    const modal = document.getElementById("byokModal");
+    const apiKeyInput = document.getElementById("apiKeyInput");
+    apiKeyInput.value = localStorage.getItem("SCICANVAS_DS_KEY") || "";
+    document.getElementById("openByokBtn").onclick = () => {
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+    };
+    document.getElementById("closeByokBtn").onclick = () => {
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    };
+    document.getElementById("runByokBtn").onclick = async () => {
+      const key = apiKeyInput.value.trim();
+      const prompt = document.getElementById("customPromptInput").value.trim();
+      if (!key || !prompt) return alert("请填写 DeepSeek API Key 和实验描述！");
+      localStorage.setItem("SCICANVAS_DS_KEY", key);
+      const btn = document.getElementById("runByokBtn");
+      btn.disabled = true;
+      btn.textContent = " DeepSeek 正在实时编写 60fps 交互仿真代码 (约需8-12秒)...";
+      try {
+        // 注意：浏览器直连第三方 API 依赖对方返回 CORS 头；
+        // 若被拦截，请改用本地 FastAPI 后端或自建同源代理。
+        const res = await fetch("https://api.deepseek.com/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${key}`
+          },
+          body: JSON.stringify({
+            model: "deepseek-chat",
+            temperature: 0.2,
+            messages: [
+              {
+                role: "system",
+                content: "你是一位精通 HTML5 Canvas、SVG 与 Tailwind CSS 的计算物理架构师。请将用户的科学概念转化为一个完全自包含的单文件 HTML 2D 交互实验室。使用 Tailwind CDN，深色背景 bg-slate-950，包含高帧率 requestAnimationFrame 画布与 2-3 个参数滑块。只输出完整的 <!DOCTYPE html>...</html> 代码。"
+              },
+              { role: "user", content: prompt }
+            ]
+          })
+        });
+        const data = await res.json();
+        const raw = data.choices?.[0]?.message?.content || "";
+        const match = raw.match(/```(?:html)?\s*(<!DOCTYPE html>[\s\S]*?<\/html>)\s*```/i);
+        currentHtmlContent = match ? match[1].trim() : raw.trim();
+        currentTitle = "custom-scicanvas-lab";
+        frame.srcdoc = currentHtmlContent;
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+      } catch (e) {
+        alert("生成失败，请检查 API Key 是否有效：" + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = " 立即调用 DeepSeek 生成并渲染";
+      }
+    };
+    loadManifest();
+  </script>
+</body>
+</html>

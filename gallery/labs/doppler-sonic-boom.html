@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>多普勒效应与马赫锥音爆仿真 - SciCanvas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col p-4 select-none">
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1">
+    <!-- 左侧 2D 动态仿真画布 -->
+    <div class="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-xl relative overflow-hidden flex flex-col min-h-[420px]">
+      <div class="absolute top-3 left-4 z-10 flex gap-4 text-xs font-mono bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800">
+        <span>马赫数 (Mach): <strong id="machReadout" class="text-cyan-400">0.60 M</strong></span>
+        <span>迎面波长比: <strong id="frontLambda" class="text-rose-400">0.40 λ₀</strong></span>
+        <span>状态: <strong id="regimeReadout" class="text-emerald-400">亚音速 (Subsonic)</strong></span>
+      </div>
+      <canvas id="simCanvas" class="w-full flex-1"></canvas>
+    </div>
+    <!-- 右侧参数控制与挑战面板 -->
+    <div class="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between gap-4">
+      <div class="space-y-4">
+        <div>
+          <h2 class="text-base font-bold text-cyan-400"> 多普勒效应与音爆马赫锥</h2>
+          <p class="text-xs text-slate-400 mt-1">实时模拟移动波源发射球面波的波前挤压与激波形成过程</p>
+        </div>
+        <div class="space-y-3 bg-slate-950 p-3.5 rounded-lg border border-slate-800">
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-300">波源移速 (马赫数 v_s / c)</span>
+              <span id="speedVal" class="font-mono text-cyan-400">0.60 M</span>
+            </div>
+            <input id="speedSlider" type="range" min="0" max="1.6" step="0.05" value="0.6" class="w-full accent-cyan-400" />
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-300">声波发射频率 (Hz)</span>
+              <span id="freqVal" class="font-mono text-indigo-400">3.0 Hz</span>
+            </div>
+            <input id="freqSlider" type="range" min="1" max="6" step="0.5" value="3" class="w-full accent-indigo-400" />
+          </div>
+        </div>
+        <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-200 leading-relaxed">
+          <div class="font-bold mb-1">🤯 直觉反差挑战：</div>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button id="toggleBtn" class="flex-1 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-semibold transition">暂停 / 继续</button>
+        <button id="resetBtn" class="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold transition">重置波场</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const speedSlider = document.getElementById('speedSlider');
+    const freqSlider = document.getElementById('freqSlider');
+    let waves = [];
+    let running = true;
+    let waveSpeed = 2.6;
+    let mach = 0.6;
+    let emitFreq = 3.0;
+    let sourceX = 120;
+    let lastEmitTime = 0;
+    function resize() {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+    function updateReadouts() {
+      mach = parseFloat(speedSlider.value);
+      emitFreq = parseFloat(freqSlider.value);
+      document.getElementById('speedVal').textContent = mach.toFixed(2) + ' M';
+      document.getElementById('freqVal').textContent = emitFreq.toFixed(1) + ' Hz';
+      document.getElementById('machReadout').textContent = mach.toFixed(2) + ' M';
+      const ratio = Math.max(0, 1 - mach).toFixed(2);
+      document.getElementById('frontLambda').textContent = mach < 1 ? ratio + ' λ₀' : '激波重叠';
+      const regimeEl = document.getElementById('regimeReadout');
+      if (mach < 0.98) {
+        regimeEl.textContent = '亚音速 (Subsonic)';
+        regimeEl.className = 'text-emerald-400';
+      } else if (mach <= 1.02) {
+        regimeEl.textContent = '跨音速音障 (Sonic Barrier)';
+        regimeEl.className = 'text-amber-400';
+      } else {
+        regimeEl.textContent = '超音速马赫锥 (Supersonic)';
+        regimeEl.className = 'text-rose-400';
+      }
+    }
+    speedSlider.addEventListener('input', updateReadouts);
+    freqSlider.addEventListener('input', updateReadouts);
+    document.getElementById('toggleBtn').addEventListener('click', () => { running = !running; });
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      waves = [];
+      sourceX = 80;
+    });
+    function animate(timestamp) {
+      if (running) {
+        ctx.fillStyle = '#090d16';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // 绘制背景暗网格
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 0.5;
+        for (let x = 0; x < canvas.width; x += 40) {
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+        }
+        for (let y = 0; y < canvas.height; y += 40) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+        }
+        const centerY = canvas.height / 2;
+        sourceX += mach * waveSpeed;
+        if (sourceX > canvas.width - 40) {
+          sourceX = 60;
+          waves = [];
+        }
+        const interval = 1000 / (emitFreq * 2.2);
+        if (timestamp - lastEmitTime > interval) {
+          waves.push({ x: sourceX, y: centerY, r: 2, alpha: 1.0 });
+          lastEmitTime = timestamp;
+        }
+        // 更新并绘制声波波前
+        for (let i = waves.length - 1; i >= 0; i--) {
+          const w = waves[i];
+          w.r += waveSpeed;
+          w.alpha = Math.max(0, 1 - w.r / (Math.max(canvas.width, canvas.height) * 0.75));
+          if (w.alpha <= 0.02) {
+            waves.splice(i, 1);
+            continue;
+          }
+          ctx.beginPath();
+          ctx.arc(w.x, w.y, w.r, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(56, 189, 248, ${w.alpha})`;
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
+        }
+        // 超音速时绘制马赫锥包络参考线
+        if (mach > 1.02) {
+          const sinAngle = 1 / mach;
+          const angle = Math.asin(sinAngle);
+          const coneLen = canvas.width;
+          ctx.save();
+          ctx.setLineDash([6, 4]);
+          ctx.strokeStyle = 'rgba(244, 63, 94, 0.75)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(sourceX, centerY);
+          ctx.lineTo(sourceX - coneLen * Math.cos(angle), centerY - coneLen * Math.sin(angle));
+          ctx.moveTo(sourceX, centerY);
+          ctx.lineTo(sourceX - coneLen * Math.cos(angle), centerY + coneLen * Math.sin(angle));
+          ctx.stroke();
+          ctx.restore();
+        }
+        // 绘制声源粒子
+        ctx.save();
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#f43f5e';
+        ctx.fillStyle = '#f43f5e';
+        ctx.beginPath();
+        ctx.arc(sourceX, centerY, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      requestAnimationFrame(animate);
+    }
+    updateReadouts();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
