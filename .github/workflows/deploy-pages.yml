@@ -26,7 +26,7 @@ jobs:
       - name: Upload static gallery artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './gallery'
+          path: './A-自由生成/gallery'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

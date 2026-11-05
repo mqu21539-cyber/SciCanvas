@@ -66,7 +66,7 @@ export default function SciCanvasApp() {
       setLoading(false);
     }
   };
-  // 等待期间计时：真实耗时 70–170s，必须让用户看到「还在动」，否则会被当成卡死
+  // 等待期间计时：实测 25–30s，必须让用户看到「还在动」，否则会被当成卡死
   useEffect(() => {
     if (!loading) {
       setElapsed(0);
@@ -222,16 +222,16 @@ export default function SciCanvasApp() {
                 <div className="w-full max-w-md space-y-5">
                   <div className="text-5xl">⚗️</div>
                   <p className="text-sm font-medium text-slate-200">
-                    {elapsed < 15
+                    {elapsed < 6
                       ? "① 正在拆解物理量与参数区间…"
-                      : elapsed < 75
+                      : elapsed < 32
                         ? "② 正在编写 Canvas 画布代码…"
                         : "③ 代码较长，仍在生成中（复杂概念会更久）…"}
                   </p>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 transition-all duration-1000"
-                      style={{ width: `${Math.min(95, Math.round((elapsed / 90) * 100))}%` }}
+                      style={{ width: `${Math.min(95, Math.round((elapsed / 32) * 100))}%` }}
                     />
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-500">
@@ -244,7 +244,7 @@ export default function SciCanvasApp() {
               <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-8 text-center">
                 <div className="text-5xl mb-3">🧪</div>
                 <p className="text-sm">点击左侧预设案例或输入任意科学概念</p>
-                <p className="mt-1.5 text-xs text-slate-600">10 秒出科学蓝图，约 90 秒出可玩沙盒</p>
+                <p className="mt-1.5 text-xs text-slate-600">10 秒出科学蓝图，实测约 30 秒出可玩沙盒</p>
               </div>
             )
           ) : viewMode === "preview" ? (

@@ -5,6 +5,7 @@
     python smoke_test.py
 """
 import json
+import os
 
 from fastapi.testclient import TestClient
 
@@ -20,10 +21,16 @@ r = client.get("/api/health")
 print("GET /api/health ->", r.status_code, r.json())
 assert r.status_code == 200 and r.json()["status"] == "ok"
 
+# 无密钥场景：临时摘掉 .env 注入的 key，验证报错可读（而不是 import 阶段就崩）
+_saved_key = os.environ.pop("DEEPSEEK_API_KEY", None)
+agents._client = None
 r = client.post("/api/generate", json={"prompt": "傅里叶变换"})
 print("POST /api/generate (无密钥) ->", r.status_code, str(r.json())[:120])
 assert r.status_code == 500
 assert "DEEPSEEK_API_KEY" in r.json()["detail"]
+if _saved_key:
+    os.environ["DEEPSEEK_API_KEY"] = _saved_key
+agents._client = None
 
 r = client.post("/api/generate", json={})
 print("POST /api/generate (缺字段) ->", r.status_code)
