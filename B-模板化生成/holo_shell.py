@@ -364,6 +364,7 @@ window.onerror = function(msg, url, line, col, error) {
       '<span class="vl" id="v_' + c.id + '">' + P[c.id] + (c.unit || '') + '</span></div>';
     var input = document.createElement('input');
     input.type = 'range'; input.min = c.min; input.max = c.max; input.step = c.step; input.value = P[c.id];
+    input.setAttribute('data-k', c.id);
     input.addEventListener('input', function(){
       var val = parseFloat(input.value);
       P[c.id] = val;
@@ -505,6 +506,19 @@ window.onerror = function(msg, url, line, col, error) {
     } else if (d.type === 'HIGHLIGHT_TARGET') {
       HIGHLIGHT = d.active ? d.key : null;
     } else if (d.type === 'RESET') {
+      api.reset();
+    } else if (d.type === 'CHAOS') {
+      // 混沌注入：阻尼/摩擦类参数推到 0，其余推到最大，制造极端现象
+      var damping = ['mu', 'c', 'b', 'k', 'damping', 'friction', 'drag'];
+      SPEC.controls.forEach(function(c){
+        var low = String(c.id).toLowerCase();
+        var isDamping = damping.some(function(k){ return low === k || low.indexOf(k) === 0; });
+        P[c.id] = isDamping ? c.min : c.max;
+        var el = document.getElementById('v_' + c.id);
+        if (el) el.textContent = P[c.id] + (c.unit || '');
+        var input = document.querySelector('#capsules input[data-k="' + c.id + '"]');
+        if (input) input.value = P[c.id];
+      });
       api.reset();
     } else if (d.type === 'GHOST_TOGGLE') {
       document.getElementById('btnGhost').click();

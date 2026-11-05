@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 07 · 交互功能（真实浏览器）
  *
  * 覆盖两个「创新点」：
@@ -78,6 +78,19 @@ await withChrome(async ({ newPage }) => {
   await sleep(800)
   const afterReset = await cdp.eval(`document.querySelectorAll('iframe').length`)
   t.ok('同步重置后仍是两块', reset === 'clicked' && afterReset === 2, `reset=${reset} n=${afterReset}`)
+
+  // ---- 全息座舱：双 Agent 脉冲条 + 混沌注入 + 视差开关 ----
+  const cockpit = await cdp.eval(`(() => {
+    const txt = document.body.innerText;
+    return {
+      pulse: txt.includes('01.PLANNER') && txt.includes('02.CODER-2.5D'),
+      chaos: [...document.querySelectorAll('button')].some((b) => b.textContent.includes('混沌注入')),
+      parallax: [...document.querySelectorAll('button')].some((b) => b.textContent.includes('视差') || b.textContent.includes('锁止')),
+    };
+  })()`)
+  t.ok('座舱显示双 Agent 脉冲条', cockpit.pulse)
+  t.ok('座舱有混沌注入按钮', cockpit.chaos)
+  t.ok('座舱有视差开关', cockpit.parallax)
 
   // ---- 刷新后不丢（localStorage 恢复）----
   await cdp.send('Page.reload')

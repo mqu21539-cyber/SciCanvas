@@ -1,5 +1,6 @@
-"use client";
+﻿"use client";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import HoloCockpit, { type AgentStatus } from "../components/HoloCockpit";
 import MathFormula from "../components/MathFormula";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8010";
@@ -50,6 +51,9 @@ export default function SciCanvasApp() {
   >(null);
   // 如果输入里带 arXiv 编号，后端会抓摘要，这里存一下用于展示出处
   const [paper, setPaper] = useState<{ id: string; title: string; url: string } | null>(null);
+  // 全息座舱：双 Agent 脉冲条与自愈计数
+  const [agentStatus, setAgentStatus] = useState<AgentStatus>("IDLE");
+  const [healCount, setHealCount] = useState(0);
   const [viewMode, setViewMode] = useState<"preview" | "code">("preview");
   // 「先猜后试」：用户先选一个预测，再去拖滑块验证
   const [guess, setGuess] = useState<string | null>(null);
@@ -85,10 +89,12 @@ export default function SciCanvasApp() {
       case "planner":
         setStage("② Planner 正在拆解物理量与参数区间…");
         setProgress(30);
+        setAgentStatus("PLANNING");
         break;
       case "coder":
         setStage("③ Coder 正在编写 Canvas 画布代码…");
         setProgress(55);
+        setAgentStatus("CODING");
         break;
       case "cache_hit":
         setStage("⚡ 命中缓存，直接复用上次结果…");
@@ -156,6 +162,7 @@ export default function SciCanvasApp() {
           if (payload.stage === "done") {
             final = payload as Record<string, unknown>;
             setProgress(100);
+            setAgentStatus("READY");
             continue;
           }
           applyStage(payload);
@@ -254,6 +261,8 @@ export default function SciCanvasApp() {
         }
         healBudget.current -= 1;
         setFixing(true);
+        setAgentStatus("HEALING");
+        setHealCount((n) => n + 1);
         try {
           const res = await fetch(`${API_BASE}/api/fix`, {
             method: "POST",
@@ -269,21 +278,40 @@ export default function SciCanvasApp() {
           if (res.ok && data.html) setHtmlCode(data.html);
         } finally {
           setFixing(false);
+          setAgentStatus("READY");
         }
       }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, [htmlCode, fixing]);
+  // 向沙盒广播指令（对比模式下有两块，一起发）
+  const postToSandbox = (payload: Record<string, unknown>) => {
+    document.querySelectorAll("iframe").forEach((f) => {
+      f.contentWindow?.postMessage(payload, "*");
+    });
+  };
+  // 混沌注入：把参数推到物理极限（由底座决定推到哪个方向）
+  const handleChaos = () => postToSandbox({ type: "CHAOS" });
   // 一键导出单文件交互式 HTML 闪卡
   const handleDownloadHtml = () => {
     if (!htmlCode) return;
-    const blob = new Blob([htmlCode], { type: "text/html" });
+    // 导出的卡带会被人转发，塞一个回链当"出处"，也顺便给项目导流
+    const credit =
+      '<a href="https://github.com/scicanvas/scicanvas" target="_blank" rel="noreferrer" ' +
+      'style="position:fixed;bottom:10px;right:12px;z-index:999;font:11px/1.6 ui-monospace,monospace;' +
+      'color:#38bdf8;background:rgba(2,6,23,.85);border:1px solid #38bdf8;padding:3px 9px;' +
+      'text-decoration:none;box-shadow:0 0 12px rgba(56,189,248,.3)">⚡ Powered by SciCanvas</a>';
+    const withCredit = htmlCode.includes("Powered by SciCanvas")
+      ? htmlCode
+      : htmlCode.replace(/<\/body>/i, `${credit}</body>`);
+    const blob = new Blob([withCredit], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `${plan?.title || "scicanvas-lab"}.html`;
     a.click();
+    URL.revokeObjectURL(url);
   };
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -477,6 +505,12 @@ export default function SciCanvasApp() {
 🩹 检测到沙盒异常，Self-Healing Agent 正在自动热修复代码...
             </div>
           )}
+          <HoloCockpit
+            status={agentStatus}
+            healCount={healCount}
+            chaosAvailable={Boolean(htmlCode)}
+            onChaos={handleChaos}
+          >
           {!htmlCode ? (
             loading ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -537,6 +571,7 @@ export default function SciCanvasApp() {
               {htmlCode}
             </pre>
           )}
+          </HoloCockpit>
         </div>
       </main>
     </div>
