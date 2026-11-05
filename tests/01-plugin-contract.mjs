@@ -93,6 +93,55 @@ const healed = await heal.execute({ file_path: path.join(tmp, 'broken.html'), er
 t.ok('heal 覆盖原文件', fs.readFileSync(path.join(tmp, 'broken.html'), 'utf-8').includes('fixed'))
 t.ok('heal 返回值合法', validateJsonSchemaValue(heal.output.schema, healed, '').length === 0)
 
+// ---- 展厅登记 + 中文标题的 slug 兜底 ----
+const galleryDir = path.join(tmp, 'gallery')
+const manifestPath = path.join(galleryDir, 'manifest.json')
+const reg2 = []
+plugin.apply(
+  { tools: { register: (tool) => reg2.push(tool) }, logger: { info() {}, warn() {} } },
+  {
+    backendUrl: 'http://127.0.0.1:9',
+    deepseekApiKey: '',
+    outputDir: path.join(galleryDir, 'labs'),
+    galleryManifest: manifestPath,
+    galleryCategory: 'AI 实时生成',
+    autoOpenBrowser: false,
+  }
+)
+const render2 = reg2.find((x) => x.name === 'render_science_lab')
+
+globalThis.fetch = async (url) => {
+  if (String(url).endsWith('/api/health')) return { ok: true, status: 200 }
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      plan: {
+        title: '弹簧振子简谐运动',
+        formula_latex: 'T = 2π√(m/k)',
+        intuition_challenge: '质量翻倍，周期变几倍？',
+      },
+      html: HTML,
+    }),
+  }
+}
+
+const readManifest = () => JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+
+await render2.execute({ concept_prompt: '弹簧振子' })
+const entries = readManifest()
+t.ok('生成后登记进 manifest', entries.length === 1, `id=${entries[0]?.id}`)
+t.ok('中文标题回落到时间戳 id（不再撞车）', /^lab-\d{8}-\d{6}$/.test(entries[0]?.id || ''), entries[0]?.id)
+t.ok('file 是相对 manifest 的 labs 路径', String(entries[0]?.file).startsWith('./labs/'), entries[0]?.file)
+t.ok('category 生效', entries[0]?.category === 'AI 实时生成')
+t.ok('formula/challenge 带上了蓝图字段', Boolean(entries[0]?.formula) && Boolean(entries[0]?.challenge))
+
+await render2.execute({ concept_prompt: '弹簧振子', filename: 'spring-oscillator' })
+await render2.execute({ concept_prompt: '弹簧振子', filename: 'spring-oscillator' })
+const entries2 = readManifest()
+t.ok('按 id 幂等（同名不重复）', entries2.filter((e) => e.id === 'spring-oscillator').length === 1)
+t.ok('新条目排在最前', entries2[0]?.id === 'spring-oscillator', entries2.map((e) => e.id).join(','))
+
 globalThis.fetch = async () => {
   throw new Error('ECONNREFUSED')
 }

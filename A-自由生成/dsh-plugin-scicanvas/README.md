@@ -50,10 +50,17 @@ plugin_manager { action: "install_bundle", target: "D:\\SciCanvas\\A-自由生�
       config:
         backendUrl: 'http://127.0.0.1:8000'   # 本地后端，未启动则自动降级
         outputDir: './scicanvas-labs'          # 产物目录
+        galleryManifest: ''                    # 展厅 manifest.json；给了才登记（留空不登记）
+        galleryCategory: 'AI 实时生成'          # 登记时的分类前缀
         autoOpenBrowser: true
 ```
 
 `deepseekApiKey` 可放在 config 或 `DEEPSEEK_API_KEY` 环境变量里（直连模式才需要）。
+
+`galleryManifest` 指向展厅的 `manifest.json` 时，每次生成会按 `id`（文件名 slug）幂等
+upsert 一条 `{id,title,category,formula,challenge,file}`，新条目排在最前，写失败只告警、
+不影响实验落盘。`file` 自动写成相对 manifest 的路径（如 `./labs/xxx.html`），
+所以 `outputDir` 一般指向 `gallery/labs`。
 
 ## 自测（探针）
 

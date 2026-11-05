@@ -37,6 +37,44 @@ function extractHtml(raw) {
   return match ? match[1].trim() : String(raw || '').trim()
 }
 
+/**
+ * 把新实验登记进展厅 manifest.json（按 id 幂等覆盖，新条目排在最前）。
+ * 写入失败只告警，不影响实验本身落盘。
+ * @param {string} manifestPath 绝对路径
+ * @param {{id:string,title:string,category:string,formula:string,challenge:string,file:string}} entry
+ * @param {{warn?: (msg: string) => void}} [logger]
+ * @returns {boolean} 是否写入成功
+ */
+function upsertGalleryEntry(manifestPath, entry, logger) {
+  try {
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true })
+    let entries = []
+    if (fs.existsSync(manifestPath)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+        if (Array.isArray(parsed)) entries = parsed
+      } catch (e) {
+        logger?.warn?.(`[scicanvas] manifest 解析失败，将按单条重建：${e.message}`)
+      }
+    }
+    const next = [entry, ...entries.filter((item) => item && item.id !== entry.id)]
+    const tmp = `${manifestPath}.tmp`
+    fs.writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, 'utf-8')
+    fs.renameSync(tmp, manifestPath)
+    return true
+  } catch (e) {
+    logger?.warn?.(`[scicanvas] 写入 gallery manifest 失败：${e.message}`)
+    return false
+  }
+}
+
+/** 本地时间戳，用作中文标题无法 slug 化时的兜底文件名：lab-20261105-112233 */
+function localStamp() {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `lab-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+
 /** 跨平台在默认浏览器中打开生成的 HTML 实验文件 */
 async function openFileInBrowser(filePath) {
   const { spawn } = await import('node:child_process')
@@ -60,6 +98,11 @@ export function apply(ctx, config = {}) {
   const baseUrl = config.deepseekBaseUrl || process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'
   const outputDir = path.resolve(process.cwd(), config.outputDir || './scicanvas-labs')
   const autoOpen = config.autoOpenBrowser ?? true
+  /** 展厅清单：给了路径才登记，缺省不影响既有行为。 */
+  const galleryManifest = config.galleryManifest
+    ? path.resolve(process.cwd(), config.galleryManifest)
+    : null
+  const galleryCategory = config.galleryCategory || 'AI 实时生成'
 
   fs.mkdirSync(outputDir, { recursive: true })
 
@@ -157,13 +200,32 @@ export function apply(ctx, config = {}) {
       }),
       async execute(args) {
         const result = await generateLabHtml(args.concept_prompt)
-        const safeName = (args.filename || result.title || 'scicanvas-lab')
+        // 纯中文标题 slug 化后会变成空串，若不兜底，所有实验都会覆盖同一个 scicanvas-lab.html
+        const slug = String(args.filename || result.title || '')
           .toLowerCase()
           .replace(/[^a-z0-9-_]+/g, '-')
           .replace(/^-+|-+$/g, '')
-          .slice(0, 60) || 'scicanvas-lab'
+          .slice(0, 60)
+        const safeName = slug || localStamp()
         const filePath = path.join(outputDir, `${safeName}.html`)
         fs.writeFileSync(filePath, result.html, 'utf-8')
+        if (galleryManifest) {
+          upsertGalleryEntry(
+            galleryManifest,
+            {
+              id: safeName,
+              title: result.title || safeName,
+              category: galleryCategory,
+              formula: result?.plan?.formula_latex || '',
+              challenge: result?.plan?.intuition_challenge || '',
+              file: `./${path
+                .relative(path.dirname(galleryManifest), filePath)
+                .split(path.sep)
+                .join('/')}`,
+            },
+            ctx.logger
+          )
+        }
         if (autoOpen) await openFileInBrowser(filePath)
         return {
           status: 'success',

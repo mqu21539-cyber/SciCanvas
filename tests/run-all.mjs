@@ -38,6 +38,7 @@ const TESTS = [
   { id: '03', name: '模板渲染 + 浏览器验证', cmd: 'node', file: '03-templates.mjs', slow: true },
   { id: '04', name: '自愈链路端到端', cmd: 'node', file: '04-selfheal.mjs', slow: true, needsServices: true },
   { id: '05', name: '前端路由徽标', cmd: 'node', file: '05-ui-route.mjs', slow: true, needsServices: true },
+  { id: '06', name: '展厅清单一致性', cmd: 'node', file: '06-gallery.mjs', slow: false },
 ]
 
 if (args.includes('--list')) {

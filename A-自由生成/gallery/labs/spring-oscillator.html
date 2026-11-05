@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script>
+window.onerror = function(msg, url, line, col, error) {
+  window.parent.postMessage({ type: 'SCICANVAS_ERROR', message: msg, line: line }, '*');
+};
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>弹簧振子简谐运动</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html,body{height:100%;}
+  body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:9999px;background:#1e293b;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:#38bdf8;box-shadow:0 0 10px #38bdf8;cursor:pointer;border:2px solid #0f172a;}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#38bdf8;box-shadow:0 0 10px #38bdf8;cursor:pointer;border:2px solid #0f172a;}
+  .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:#334155;border-radius:4px;}
+  ::-webkit-scrollbar-track{background:#0f172a;}
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+<div class="max-w-[1500px] mx-auto p-4 lg:p-6">
+  <!-- Header -->
+  <header class="mb-4 flex flex-col md:flex-row md:items-end md:justify-between gap-2">
+    <div>
+      <h1 class="text-2xl lg:text-3xl font-bold tracking-tight bg-gradient-to-r from-sky-400 via-purple-400 to-amber-300 bg-clip-text text-transparent">弹簧振子简谐运动</h1>
+      <p class="text-slate-400 text-sm mt-1">质量越大，振子越“懒”，周期越长——但只按平方根变慢。</p>
+    </div>
+    <div class="text-xs text-slate-500 mono bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2">
+      T = 2π √(m / k)
+    </div>
+  </header>
+
+  <div class="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4">
+    <!-- Canvas area -->
+    <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 relative overflow-hidden">
+      <div class="absolute top-3 left-3 z-10 text-[11px] mono leading-5 pointer-events-none">
+        <div class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 backdrop-blur">
+          <div class="text-slate-400">实时数据</div>
+          <div>x = <span id="mX" class="text-sky-400">0.000</span> m</div>
+          <div>v = <span id="mV" class="text-amber-400">0.000</span> m/s</div>
+          <div>T = <span id="mT" class="text-purple-400">0.000</span> s</div>
+        </div>
+      </div>
+      <div class="absolute top-3 right-3 z-10 text-[11px] mono leading-5 pointer-events-none">
+        <div class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 backdrop-blur text-right">
+          <div class="text-slate-400">理论值</div>
+          <div>T_theory = <span id="mTt" class="text-purple-400">0.000</span> s</div>
+          <div>f = <span id="mF" class="text-emerald-400">0.000</span> Hz</div>
+        </div>
+      </div>
+      <canvas id="cv" class="w-full block rounded-lg" style="height:min(62vh,560px);"></canvas>
+    </div>
+
+    <!-- Control panel -->
+    <div class="flex flex-col gap-4">
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-slate-200 tracking-wide">控制面板</h2>
+          <div class="flex gap-2">
+            <button id="btnPause" class="text-xs px-3 py-1.5 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 hover:bg-sky-500/30 transition">暂停</button>
+            <button id="btnReset" class="text-xs px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30 transition">重置</button>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-300">劲度系数 k (N/m)</span>
+              <span id="valK" class="mono text-sky-400">5.0</span>
+            </div>
+            <input id="k" type="range" min="0.5" max="20" step="0.1" value="5" class="w-full">
+            <p class="text-[11px] text-slate-500 mt-1 leading-snug">增大 k 时，弹簧更“硬”，振子振动更快，周期变短，位移-时间曲线变得更密集。</p>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-300">质量 m (kg)</span>
+              <span id="valM" class="mono text-amber-400">1.0</span>
+            </div>
+            <input id="m" type="range" min="0.5" max="10" step="0.1" value="1" class="w-full">
+            <p class="text-[11px] text-slate-500 mt-1 leading-snug">增大 m 时，振子惯性更大，振动更慢，周期变长，位移-时间曲线变得更稀疏。</p>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-300">初始振幅 A (m)</span>
+              <span id="valA" class="mono text-purple-400">1.00</span>
+            </div>
+            <input id="A" type="range" min="0.1" max="2" step="0.05" value="1" class="w-full">
+            <p class="text-[11px] text-slate-500 mt-1 leading-snug">改变振幅只影响位移-时间曲线的上下幅度，不改变周期；振子最大位移和速度相应变化。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-slate-200 mb-2 tracking-wide">直觉挑战</h2>
+        <p class="text-[12px] text-slate-400 leading-relaxed">把质量滑块从 1 kg 调到 2 kg，周期会变成原来的 2 倍吗？拖动滑块，观察周期数值和位移-时间曲线的变化！</p>
+        <div class="mt-3 grid grid-cols-2 gap-2 text-[11px] mono">
+          <div class="bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5">
+            <div class="text-slate-500">m=1 → T</div>
+            <div id="cmp1" class="text-sky-400">—</div>
+          </div>
+          <div class="bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5">
+            <div class="text-slate-500">m=2 → T</div>
+            <div id="cmp2" class="text-amber-400">—</div>
+          </div>
+        </div>
+        <div class="mt-2 text-[11px] text-slate-500">比值 T(2)/T(1) = <span id="cmpR" class="text-emerald-400 mono">—</span>（理论 √2 ≈ 1.414）</div>
+      </div>
+
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-slate-200 mb-2 tracking-wide">图例</h2>
+        <div class="grid grid-cols-2 gap-y-1.5 text-[11px]">
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-sm" style="background:#64748b"></span><span class="text-slate-400">弹簧</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-sm" style="background:#38bdf8"></span><span class="text-slate-400">质量块</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background:#fbbf24"></span><span class="text-slate-400">发光粒子</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-sm" style="background:#f43f5e"></span><span class="text-slate-400">恢复力 F</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-sm" style="background:#a855f7"></span><span class="text-slate-400">x-t 曲线</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-sm" style="background:#e2e8f0"></span><span class="text-slate-400">游标线</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+
+  // State
+  const state = {
+    k: 5.0,
+    m: 1.0,
+    A: 1.0,
+    t: 0,
+    paused: false,
+    // physics
+    x: 1.0,
+    v: 0,
+    // history for sparkline / x-t curve
+    history: [], // {t, x}
+    maxHistory: 12, // seconds of history
+    lastTs: 0
+  };
+
+  // DOM
+  const elK = document.getElementById('k');
+  const elM = document.getElementById('m');
+  const elA = document.getElementById('A');
+  const valK = document.getElementById('valK');
+  const valM = document.getElementById('valM');
+  const valA = document.getElementById('valA');
+  const mX = document.getElementById('mX');
+  const mV = document.getElementById('mV');
+  const mT = document.getElementById('mT');
+  const mTt = document.getElementById('mTt');
+  const mF = document.getElementById('mF');
+  const btnPause = document.getElementById('btnPause');
+  const btnReset = document.getElementById('btnReset');
+  const cmp1 = document.getElementById('cmp1');
+  const cmp2 = document.getElementById('cmp2');
+  const cmpR = document.getElementById('cmpR');
+
+  function omega(){ return Math.sqrt(state.k / state.m); }
+  function period(){ return 2 * Math.PI / omega(); }
+
+  function reset(){
+    state.t = 0;
+    state.x = state.A;
+    state.v = 0;
+    state.history = [];
+    state.lastTs = 0;
+    updateCompare();
+  }
+
+  function updateCompare(){
+    const T1 = 2*Math.PI*Math.sqrt(1/state.k);
+    const T2 = 2*Math.PI*Math.sqrt(2/state.k);
+    cmp1.textContent = T1.toFixed(3)+' s';
+    cmp2.textContent = T2.toFixed(3)+' s';
+    cmpR.textContent = (T2/T1).toFixed(3);
+  }
+
+  // Resize handling
+  let W = 0, H = 0, DPR = 1;
+  function resize(){
+    const rect = cv.getBoundingClientRect();
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = rect.width;
+    H = rect.height;
+    cv.width = Math.floor(W * DPR);
+    cv.height = Math.floor(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+
+  // Controls
+  elK.addEventListener('input', ()=>{
+    state.k = parseFloat(elK.value);
+    valK.textContent = state.k.toFixed(1);
+    updateCompare();
+  });
+  elM.addEventListener('input', ()=>{
+    state.m = parseFloat(elM.value);
+    valM.textContent = state.m.toFixed(1);
+    updateCompare();
+  });
+  elA.addEventListener('input', ()=>{
+    state.A = parseFloat(elA.value);
+    valA.textContent = state.A.toFixed(2);
+    // reset phase to amplitude for clean start
+    state.x = state.A;
+    state.v = 0;
+    state.t = 0;
+    state.history = [];
+  });
+  btnPause.addEventListener('click', ()=>{
+    state.paused = !state.paused;
+    btnPause.textContent = state.paused ? '继续' : '暂停';
+    btnPause.classList.toggle('bg-emerald-500/20', state.paused);
+    btnPause.classList.toggle('border-emerald-500/40', state.paused);
+    btnPause.classList.toggle('text-emerald-300', state.paused);
+    btnPause.classList.toggle('bg-sky-500/20', !state.paused);
+    btnPause.classList.toggle('border-sky-500/40', !state.paused);
+    btnPause.classList.toggle('text-sky-300', !state.paused);
+  });
+  btnReset.addEventListener('click', reset);
+
+  // Physics integration (analytic for accuracy, but we advance time)
+  function step(dt){
+    // analytic solution: x = A cos(w t), v = -A w sin(w t)
+    state.t += dt;
+    const w = omega();
+    state.x = state.A * Math.cos(w * state.t);
+    state.v = -state.A * w * Math.sin(w * state.t);
+
+    // history
+    state.history.push({t: state.t, x: state.x});
+    // trim
+    const cutoff = state.t - state.maxHistory;
+    while(state.history.length && state.history[0].t < cutoff) state.history.shift();
+  }
+
+  // Drawing helpers
+  function drawGrid(x, y, w, h){
+    ctx.save();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    const step = 28;
+    ctx.beginPath();
+    for(let gx = x; gx <= x+w; gx += step){
+      ctx.moveTo(gx, y); ctx.lineTo(gx, y+h);
+    }
+    for(let gy = y; gy <= y+h; gy += step){
+      ctx.moveTo(x, gy); ctx.lineTo(x+w, gy);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawSpring(x1, y, x2, coils, amp){
+    ctx.save();
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#64748b';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    const len = x2 - x1;
+    const seg = len / (coils * 2 + 2);
+    ctx.moveTo(x1, y);
+    let cx = x1 + seg;
+    ctx.lineTo(cx, y);
+    for(let i=0;i<coils;i++){
+      ctx.lineTo(cx + seg*0.5, y - amp);
+      ctx.lineTo(cx + seg*1.5, y + amp);
+      cx += seg*2;
+    }
+    ctx.lineTo(x2 - seg, y);
+    ctx.lineTo(x2, y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawArrow(x1, y1, x2, y2, color, label){
+    const dx = x2-x1, dy = y2-y1;
+    const len = Math.hypot(dx,dy);
+    if(len < 1) return;
+    const ux = dx/len, uy = dy/len;
+    const head = Math.min(12, len*0.4);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x2 - ux*head*0.6, y2 - uy*head*0.6);
+    ctx.stroke();
+    // head
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - ux*head - uy*head*0.5, y2 - uy*head + ux*head*0.5);
+    ctx.lineTo(x2 - ux*head + uy*head*0.5, y2 - uy*head - ux*head*0.5);
+    ctx.closePath();
+    ctx.fill();
+    if(label){
+      ctx.shadowBlur = 0;
+      ctx.font = '11px ui-monospace, monospace';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.fillText(label, (x1+x2)/2, y1 - 10);
+    }
+    ctx.restore();
+  }
+
+  function drawSparkline(x, y, w, h){
+    // mini realtime waveform of x vs t (last few seconds)
+    ctx.save();
+    ctx.fillStyle = 'rgba(15,23,42,0.6)';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    // grid
+    ctx.strokeStyle = '#1e293b';
+    ctx.beginPath();
+    for(let i=1;i<4;i++){
+      const gy = y + h*i/4;
+      ctx.moveTo(x+4, gy); ctx.lineTo(x+w-4, gy);
+    }
+    ctx.stroke();
+
+    const hist = state.history;
+    if(hist.length > 1){
+      const t0 = hist[0].t, t1 = hist[hist.length-1].t;
+      const span = Math.max(t1-t0, 0.001);
+      const A = Math.max(state.A, 0.1);
+      ctx.beginPath();
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#a855f7';
+      ctx.shadowBlur = 8;
+      for(let i=0;i<hist.length;i++){
+        const p = hist[i];
+        const px = x + 4 + (p.t - t0)/span * (w-8);
+        const py = y + h/2 - (p.x / A) * (h/2 - 6);
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+      // cursor
+      const last = hist[hist.length-1];
+      const cx = x + 4 + (last.t - t0)/span * (w-8);
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx, y+4); ctx.lineTo(cx, y+h-4);
+      ctx.stroke();
+      // dot
+      const cy = y + h/2 - (last.x / A) * (h/2 - 6);
+      ctx.fillStyle = '#fbbf24';
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+
+    // background
+    const bgGrad = ctx.createLinearGradient(0,0,0,H);
+    bgGrad.addColorStop(0, '#0b1220');
+    bgGrad.addColorStop(1, '#0f172a');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0,0,W,H);
+
+    drawGrid(0,0,W,H);
+
+    // Layout: left spring area, right curve area
+    const pad = 20;
+    const splitX = W * 0.52;
+    const leftW = splitX - pad*2;
+    const leftH = H - pad*2;
+    const rightX = splitX + pad;
+    const rightW = W - rightX - pad;
+    const rightH = H - pad*2;
+
+    // ---- Left: spring oscillator ----
+    const wallX = pad + 30;
+    const centerY = pad + leftH * 0.55;
+    const maxStretch = leftW * 0.55;
+    const A = Math.max(state.A, 0.1);
+    const xNorm = state.x / A; // -1..1
+    const blockSize = 46;
+    const blockX = wallX + 40 + maxStretch * 0.5 + xNorm * (maxStretch * 0.45);
+    const blockY = centerY - blockSize/2;
+
+    // wall
+    ctx.save();
+    ctx.fillStyle = '#334155';
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(wallX-14, centerY-70, 14, 140, 4);
+    ctx.fill();
+    ctx.stroke();
+    // hatch
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    for(let i=-60;i<70;i+=10){
+      ctx.beginPath();
+      ctx.moveTo(wallX-14, centerY+i);
+      ctx.lineTo(wallX-4, centerY+i+8);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // spring
+    const springStart = wallX;
+    const springEnd = blockX;
+    const coils = 14;
+    const amp = 16;
+    drawSpring(springStart, centerY, springEnd, coils, amp);
+
+    // equilibrium marker
+    const eqX = wallX + 40 + maxStretch * 0.5;
+    ctx.save();
+    ctx.strokeStyle = '#334155';
+    ctx.setLineDash([4,4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(eqX, centerY - 90);
+    ctx.lineTo(eqX, centerY + 90);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#475569';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('平衡位置', eqX, centerY + 105);
+    ctx.restore();
+
+    // block
+    ctx.save();
+    const blockGrad = ctx.createLinearGradient(blockX, blockY, blockX, blockY+blockSize);
+    blockGrad.addColorStop(0, '#7dd3fc');
+    blockGrad.addColorStop(1, '#0ea5e9');
+    ctx.fillStyle = blockGrad;
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.roundRect(blockX, blockY, blockSize, blockSize, 8);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // particle
+    const pcx = blockX + blockSize/2;
+    const pcy = blockY + blockSize/2;
+    const pg = ctx.createRadialGradient(pcx, pcy, 0, pcx, pcy, 14);
+    pg.addColorStop(0, '#fef3c7');
+    pg.addColorStop(0.4, '#fbbf24');
+    pg.addColorStop(1, 'rgba(251,191,36,0)');
+    ctx.fillStyle = pg;
+    ctx.shadowColor = '#fbbf24';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.arc(pcx, pcy, 14, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    // force arrow F = -k x
+    const F = -state.k * state.x;
+    const Fmax = state.k * A;
+    const arrowScale = 90 / Math.max(Fmax, 0.001);
+    const arrowLen = Math.max(-90, Math.min(90, F * arrowScale));
+    if(Math.abs(arrowLen) > 2){
+      drawArrow(pcx, blockY - 26, pcx + arrowLen, blockY - 26, '#f43f5e', 'F = -kx');
+    } else {
+      ctx.save();
+      ctx.fillStyle = '#f43f5e';
+      ctx.font = '11px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('F ≈ 0', pcx, blockY - 30);
+      ctx.restore();
+    }
+
+    // velocity arrow (small, below)
+    const vScale = 60 / Math.max(state.A * omega(), 0.001);
+    const vLen = Math.max(-60, Math.min(60, state.v * vScale));
+    if(Math.abs(vLen) > 2){
+      drawArrow(pcx, blockY + blockSize + 22, pcx + vLen, blockY + blockSize + 22, '#fbbf24', 'v');
+    }
+
+    // labels
+    ctx.save();
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('弹簧振子', pad, pad + 14);
+    ctx.restore();
+
+    // ---- Right: x-t curve ----
+    // panel
+    ctx.save();
+    ctx.fillStyle = 'rgba(15,23,42,0.55)';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(rightX, pad, rightW, rightH, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    // inner plot area
+    const plotPad = 34;
+    const px0 = rightX + plotPad;
+    const py0 = pad + plotPad;
+    const pw = rightW - plotPad*2;
+    const ph = rightH - plotPad*2;
+
+    // grid inside plot
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for(let i=0;i<=4;i++){
+      const gy = py0 + ph*i/4;
+      ctx.moveTo(px0, gy); ctx.lineTo(px0+pw, gy);
+    }
+    for(let i=0;i<=6;i++){
+      const gx = px0 + pw*i/6;
+      ctx.moveTo(gx, py0); ctx.lineTo(gx, py0+ph);
+    }
+    ctx.stroke();
+
+    // axes
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(px0, py0); ctx.lineTo(px0, py0+ph); ctx.lineTo(px0+pw, py0+ph);
+    ctx.stroke();
+
+    // zero line
+    const zeroY = py0 + ph/2;
+    ctx.strokeStyle = '#334155';
+    ctx.setLineDash([3,4]);
+    ctx.beginPath();
+    ctx.moveTo(px0, zeroY); ctx.lineTo(px0+pw, zeroY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // axis labels
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('t (s)', px0 + pw/2, py0 + ph + 22);
+    ctx.save();
+    ctx.translate(px0 - 20, py0 + ph/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText('x (m)', 0, 0);
+    ctx.restore();
+
+    // y ticks
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#64748b';
+    const yMax = Math.max(state.A, 0.1);
+    ctx.fillText('+'+yMax.toFixed(1), px0-6, py0+10);
+    ctx.fillText('0', px0-6, zeroY+3);
+    ctx.fillText('-'+yMax.toFixed(1), px0-6, py0+ph-2);
+
+    // x-t curve: draw over a rolling window of maxHistory seconds
+    const hist = state.history;
+    const windowSpan = state.maxHistory;
+    const tEnd = Math.max(state.t, windowSpan);
+    const tStart = tEnd - windowSpan;
+
+    // draw curve
+    if(hist.length > 1){
+      ctx.save();
+      ctx.beginPath();
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 2.2;
+      ctx.shadowColor = '#a855f7';
+      ctx.shadowBlur = 10;
+      let started = false;
+      for(let i=0;i<hist.length;i++){
+        const p = hist[i];
+        if(p.t < tStart) continue;
+        const u = (p.t - tStart) / windowSpan;
+        const gx = px0 + u * pw;
+        const gy = zeroY - (p.x / yMax) * (ph/2 - 8);
+        if(!started){ ctx.moveTo(gx, gy); started = true; }
+        else ctx.lineTo(gx, gy);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // cursor line at current time
+      const last = hist[hist.length-1];
+      const u = (last.t - tStart) / windowSpan;
+      const cx = px0 + Math.max(0, Math.min(1, u)) * pw;
+      ctx.save();
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1.2;
+      ctx.shadowColor = '#e2e8f0';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.moveTo(cx, py0); ctx.lineTo(cx, py0+ph);
+      ctx.stroke();
+      // current point
+      const cy = zeroY - (last.x / yMax) * (ph/2 - 8);
+      ctx.fillStyle = '#fbbf24';
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // title
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('位移-时间曲线 x(t)', rightX + 12, pad + 16);
+
+    // sparkline (mini realtime waveform) at bottom of right panel
+    drawSparkline(rightX + 12, pad + rightH - 62, rightW - 24, 50);
+
+    ctx.restore();
+
+    // ---- Update metrics ----
+    mX.textContent = state.x.toFixed(3);
+    mV.textContent = state.v.toFixed(3);
+    const T = period();
+    mT.textContent = T.toFixed(3);
+    mTt.textContent = T.toFixed(3);
+    mF.textContent = (1/T).toFixed(3);
+  }
+
+  // Main loop
+  function loop(ts){
+    if(!state.lastTs) state.lastTs = ts;
+    let dt = (ts - state.lastTs) / 1000;
+    state.lastTs = ts;
+    // clamp dt to avoid jumps
+    if(dt > 0.05) dt = 0.05;
+    if(dt < 0) dt = 0;
+
+    if(!state.paused){
+      // sub-step for stability
+      const steps = Math.max(1, Math.ceil(dt / 0.008));
+      const sub = dt / steps;
+      for(let i=0;i<steps;i++) step(sub);
+    }
+
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // Init
+  resize();
+  reset();
+  updateCompare();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
