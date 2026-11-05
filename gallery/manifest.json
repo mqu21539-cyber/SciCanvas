@@ -6,5 +6,29 @@
     "formula": "f' = f · (v ± v_o) / (v ∓ v_s)",
     "challenge": "当声源移动速度达到 1.0 马赫（等于波速）时，迎面波前会发生什么几何突变？把速度滑块拉到 1.2 马赫观察马赫锥！",
     "file": "./labs/doppler-sonic-boom.html"
+  },
+  {
+    "id": "gradient-descent",
+    "title": "动量梯度下降：冲出局部最优",
+    "category": "机器学习 / 优化",
+    "formula": "v_t = beta * v_{t-1} + lr * grad(L);  x_t = x_{t-1} - v_t",
+    "challenge": "如果把动量系数调到0，小球会停在局部极小值吗？试试看！",
+    "file": "./labs/gradient-descent.html"
+  },
+  {
+    "id": "binary-star-slingshot",
+    "title": "双星引力弹弓",
+    "category": "天体物理 / 轨道力学",
+    "formula": "F = -G * m1 * m2 * (r1 - r2) / |r1 - r2|^3",
+    "challenge": "如果两颗恒星质量比调到1，探测器发射角度为0度，它会被加速还是减速？拖动滑块试试！",
+    "file": "./labs/binary-star-slingshot.html"
+  },
+  {
+    "id": "doppler-agentic",
+    "title": "🌊 多普勒效应与马赫锥（双 Agent 实时生成版）",
+    "category": "AI 实时生成 / 经典物理",
+    "formula": "f_obs = f_src · v_sound / (v_sound − v_src·cosθ)；sin(α) = v_sound / v_src",
+    "challenge": "把声源速度调到 0，波前会变成什么形状？再拉到超音速，马赫锥的半顶角如何随速度变化？",
+    "file": "./labs/doppler-agentic.html"
   }
 ]

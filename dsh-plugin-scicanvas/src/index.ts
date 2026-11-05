@@ -208,14 +208,25 @@ export function apply(ctx: Context, config: Config = {}) {
       }
     },
   }
-  // 兼容挂载到 DeepSeek Harness 的工具上下文与全局服务中
+  // 兼容挂载到 DeepSeek Harness 的工具上下文与全局服务中。
+  // 注意：下面两个入口名来自社区文档的推测，不同 dsh 版本可能完全不同。
+  // 找不到入口时必须显式失败——「装上了但没有工具」比直接报错更难排查。
   const anyCtx = ctx as any
-  if (anyCtx.tool?.register) {
+  let registered = false
+  if (typeof anyCtx.tool?.register === 'function') {
     anyCtx.tool.register(renderToolSpec)
     anyCtx.tool.register(healToolSpec)
-  } else if (anyCtx.agent?.registerTool) {
+    registered = true
+  } else if (typeof anyCtx.agent?.registerTool === 'function') {
     anyCtx.agent.registerTool(renderToolSpec)
     anyCtx.agent.registerTool(healToolSpec)
+    registered = true
+  }
+  if (!registered) {
+    throw new Error(
+      '[dsh-plugin-scicanvas] 未找到 Cordis 工具注册入口：ctx.tool.register / ctx.agent.registerTool 均不可用。' +
+        '请先在目标 dsh 版本上运行探针（apply(ctx){ console.log(Object.keys(ctx)) }），再按实际 API 对齐本文件。'
+    )
   }
   // 同时暴露 ctx.scicanvas 服务供其他 Cordis 插件组合调用
   anyCtx.scicanvas = {

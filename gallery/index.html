@@ -55,10 +55,17 @@
     <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
       <div class="flex justify-between items-center">
         <h3 class="text-base font-bold text-cyan-400">🧪 浏览器直连生成 2D 实验室 (Serverless BYOK)</h3>
-        <button id="closeByokBtn" class="text-slate-400 hover:text-white text-sm"></button>
+        <button id="closeByokBtn" class="text-slate-400 hover:text-white text-sm">✕</button>
       </div>
       <p class="text-xs text-slate-400 leading-relaxed">
+        无需部署后端服务器！输入你的 DeepSeek API Key（仅保存在你本机浏览器的 localStorage 中），即可在当前页面直接生成新的互动实验室。
       </p>
+      <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-200">
+        ⚠️ 两个已知前提：<br />
+        1. 浏览器直连第三方 API 依赖对方返回 CORS 头，<b>可能被直接拦截</b>；<br />
+        2. 本页样式来自 CDN，请勿在公共设备填写真实 Key。<br />
+        生成失败时，左侧预置实验（已预生成）永远可用。
+      </div>
       <div class="space-y-3">
         <div>
           <label class="text-xs text-slate-300 block mb-1">DeepSeek API Key:</label>
@@ -75,14 +82,40 @@
     </div>
   </div>
   <script>
+    // 与 manifest.json 保持一致：直接双击打开（file://）时 fetch 会被拦，
+    // 用这份内联副本保证展厅永远有内容。
     const FALLBACK_LABS = [
       {
         id: "doppler-sonic-boom",
-        title: " 多普勒效应与马赫锥音爆临界仿真",
+        title: "🌊 多普勒效应与马赫锥音爆临界仿真",
         category: "经典物理 / 波动学",
         formula: "f' = f · (v ± v_o) / (v ∓ v_s)",
-        challenge: "当声源移速达到 1.0 马赫时迎面波前会发生什么突变？拉到 1.3 马赫观察激波马赫锥！",
+        challenge: "当声源移动速度达到 1.0 马赫时迎面波前会发生什么突变？拉到 1.3 马赫观察激波马赫锥！",
         file: "./labs/doppler-sonic-boom.html"
+      },
+      {
+        id: "gradient-descent",
+        title: "动量梯度下降：冲出局部最优",
+        category: "机器学习 / 优化",
+        formula: "v_t = beta * v_{t-1} + lr * grad(L);  x_t = x_{t-1} - v_t",
+        challenge: "把动量系数调到 0，小球会停在局部极小值吗？",
+        file: "./labs/gradient-descent.html"
+      },
+      {
+        id: "binary-star-slingshot",
+        title: "双星引力弹弓",
+        category: "天体物理 / 轨道力学",
+        formula: "F = -G * m1 * m2 * (r1 - r2) / |r1 - r2|^3",
+        challenge: "两颗恒星质量比调到 1、发射角度为 0 度时，探测器会被加速还是减速？",
+        file: "./labs/binary-star-slingshot.html"
+      },
+      {
+        id: "doppler-agentic",
+        title: "🌊 多普勒效应与马赫锥（双 Agent 实时生成版）",
+        category: "AI 实时生成 / 经典物理",
+        formula: "f_obs = f_src · v_sound / (v_sound − v_src·cosθ)；sin(α) = v_sound / v_src",
+        challenge: "把声源速度调到 0，波前会变成什么形状？",
+        file: "./labs/doppler-agentic.html"
       }
     ];
     let labs = [];
@@ -180,7 +213,13 @@
         modal.classList.add("hidden");
         modal.classList.remove("flex");
       } catch (e) {
-        alert("生成失败，请检查 API Key 是否有效：" + e.message);
+        alert(
+          "生成失败：" + e.message +
+          "\n\n常见原因（按概率排序）：\n" +
+          "1. 浏览器被 CORS 拦截——DeepSeek API 未必允许网页直连，这是 BYOK 的已知限制；\n" +
+          "2. API Key 无效或余额不足；\n" +
+          "3. 网络中断。\n\n建议直接用左侧预置实验，它们已预生成、永远可用。"
+        );
       } finally {
         btn.disabled = false;
         btn.textContent = " 立即调用 DeepSeek 生成并渲染";

@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script>
+window.onerror = function(msg, url, line, col, error) {
+  window.parent.postMessage({ type: 'SCICANVAS_ERROR', message: msg, line: line }, '*');
+};
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双星引力弹弓 · 交互仿真实验室</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html, body { height: 100%; }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif; }
+  canvas { display: block; }
+  .glass { backdrop-filter: blur(8px); }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    height: 6px; border-radius: 9999px;
+    background: linear-gradient(90deg, #1e293b, #334155);
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #38bdf8; cursor: pointer;
+    box-shadow: 0 0 10px rgba(56,189,248,0.9), 0 0 2px #fff inset;
+    border: 1px solid #0ea5e9;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #38bdf8; cursor: pointer;
+    box-shadow: 0 0 10px rgba(56,189,248,0.9);
+    border: 1px solid #0ea5e9;
+  }
+  .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #0f172a; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+<div class="max-w-[1600px] mx-auto p-4 lg:p-6">
+  <!-- Header -->
+  <header class="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="text-2xl lg:text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-300 via-orange-400 to-sky-400 bg-clip-text text-transparent">
+        双星引力弹弓
+      </h1>
+      <p class="text-slate-400 text-sm mt-1">探测器在双星引力场中穿梭，借助恒星绕转获得能量加速</p>
+    </div>
+    <div class="text-right">
+      <div class="text-[11px] uppercase tracking-widest text-slate-500">Gravity Assist</div>
+      <div class="mono text-xs text-slate-400 mt-0.5">F = −G·m₁·m₂·(r₁−r₂)/|r₁−r₂|³</div>
+    </div>
+  </header>
+
+  <div class="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4">
+    <!-- Canvas Area -->
+    <section class="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden relative">
+      <div class="absolute top-3 left-3 z-10 flex items-center gap-2 text-[11px] text-slate-400">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>LIVE SIMULATION</span>
+      </div>
+      <div class="absolute top-3 right-3 z-10 flex gap-2">
+        <button id="btnPause" class="glass px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/70 border border-slate-700 hover:bg-slate-700/80 transition">
+          ⏸ 暂停
+        </button>
+        <button id="btnReset" class="glass px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/70 border border-slate-700 hover:bg-slate-700/80 transition">
+          ↺ 重置实验
+        </button>
+      </div>
+      <div id="canvasWrap" class="w-full" style="aspect-ratio: 16/10; min-height: 380px;">
+        <canvas id="sim"></canvas>
+      </div>
+      <!-- Legend -->
+      <div class="flex flex-wrap gap-x-5 gap-y-1 px-4 py-2.5 border-t border-slate-800 text-[11px] text-slate-400">
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#fbbf24;box-shadow:0 0 8px #fbbf24"></span>恒星 1</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#f97316;box-shadow:0 0 8px #f97316"></span>恒星 2</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#38bdf8;box-shadow:0 0 8px #38bdf8"></span>探测器</span>
+        <span class="flex items-center gap-1.5"><span class="w-4 h-0.5" style="background:#a855f7"></span>尾迹</span>
+        <span class="flex items-center gap-1.5"><span class="w-4 h-0.5" style="background:#22c55e"></span>动能曲线</span>
+        <span class="flex items-center gap-1.5"><span class="w-4 h-0.5" style="background:#f43f5e"></span>引力矢量</span>
+      </div>
+    </section>
+
+    <!-- Control Panel -->
+    <aside class="flex flex-col gap-4">
+      <!-- Metrics -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+        <div class="text-[11px] uppercase tracking-widest text-slate-500 mb-3">实时数据仪表盘</div>
+        <div class="grid grid-cols-1 gap-3">
+          <div class="bg-slate-950/60 rounded-lg p-3 border border-slate-800">
+            <div class="text-[11px] text-slate-500">探测器动能 (J)</div>
+            <div id="mKE" class="mono text-xl font-semibold text-emerald-400">0.00</div>
+          </div>
+          <div class="bg-slate-950/60 rounded-lg p-3 border border-slate-800">
+            <div class="text-[11px] text-slate-500">探测器速度 (km/s)</div>
+            <div id="mSpeed" class="mono text-xl font-semibold text-sky-400">0.00</div>
+          </div>
+          <div class="bg-slate-950/60 rounded-lg p-3 border border-slate-800">
+            <div class="text-[11px] text-slate-500">双星轨道周期 (s)</div>
+            <div id="mPeriod" class="mono text-xl font-semibold text-amber-400">0.00</div>
+          </div>
+        </div>
+        <!-- Sparkline -->
+        <div class="mt-3">
+          <div class="flex justify-between text-[11px] text-slate-500 mb-1">
+            <span>动能波形</span>
+            <span id="mDelta" class="mono">ΔE = 0.00</span>
+          </div>
+          <canvas id="spark" class="w-full rounded-lg bg-slate-950/60 border border-slate-800" style="height:64px"></canvas>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+        <div class="text-[11px] uppercase tracking-widest text-slate-500 mb-3">实验参数</div>
+
+        <div class="mb-4">
+          <div class="flex justify-between items-baseline mb-1.5">
+            <label class="text-sm text-slate-300">恒星质量比 (M₂/M₁)</label>
+            <span id="vMass" class="mono text-sm text-amber-400">1.00</span>
+          </div>
+          <input id="mass_ratio" type="range" min="0.1" max="10" step="0.1" value="1" class="w-full">
+          <p class="text-[11px] text-slate-500 mt-1.5 leading-relaxed">改变双星质量比，影响引力场不对称性和轨道速度，从而改变探测器获得的能量增益</p>
+        </div>
+
+        <div class="mb-4">
+          <div class="flex justify-between items-baseline mb-1.5">
+            <label class="text-sm text-slate-300">探测器发射初速度 (km/s)</label>
+            <span id="vSpeed" class="mono text-sm text-sky-400">5.0</span>
+          </div>
+          <input id="launch_speed" type="range" min="1" max="20" step="0.1" value="5" class="w-full">
+          <p class="text-[11px] text-slate-500 mt-1.5 leading-relaxed">改变探测器初始速度，影响其轨迹和与恒星的相遇时间，从而改变弹弓效应强度</p>
+        </div>
+
+        <div class="mb-2">
+          <div class="flex justify-between items-baseline mb-1.5">
+            <label class="text-sm text-slate-300">发射角度 (度)</label>
+            <span id="vAngle" class="mono text-sm text-purple-400">0</span>
+          </div>
+          <input id="launch_angle" type="range" min="-180" max="180" step="1" value="0" class="w-full">
+          <p class="text-[11px] text-slate-500 mt-1.5 leading-relaxed">改变探测器发射方向，决定其进入双星系统的路径和与恒星的相对位置</p>
+        </div>
+      </div>
+
+      <!-- Challenge -->
+      <div class="bg-gradient-to-br from-slate-900/90 to-slate-900/60 border border-slate-800 rounded-xl p-4">
+        <div class="text-[11px] uppercase tracking-widest text-slate-500 mb-2">直觉挑战</div>
+        <p class="text-sm text-slate-300 leading-relaxed">
+          如果两颗恒星质量比调到 <span class="text-amber-400 font-semibold">1</span>，探测器发射角度为 <span class="text-purple-400 font-semibold">0°</span>，它会被加速还是减速？拖动滑块试试！
+        </p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Canvas setup ----------
+  const canvas = document.getElementById('sim');
+  const ctx = canvas.getContext('2d');
+  const wrap = document.getElementById('canvasWrap');
+  const spark = document.getElementById('spark');
+  const sctx = spark.getContext('2d');
+
+  let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+  function resize(){
+    const rect = wrap.getBoundingClientRect();
+    W = Math.max(320, rect.width);
+    H = Math.max(280, rect.height);
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    const sr = spark.getBoundingClientRect();
+    spark.width = Math.max(100, sr.width) * DPR;
+    spark.height = Math.max(40, sr.height) * DPR;
+    sctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+
+  // ---------- Physics constants (scaled for visualization) ----------
+  const G = 1.0;                 // gravitational constant (sim units)
+  const M1_BASE = 1000;          // base mass of star 1
+  const STAR_SEP = 220;          // separation between stars (sim px)
+  const DT = 0.016;              // fixed timestep
+  const SUBSTEPS = 3;            // physics substeps per frame
+
+  // ---------- State ----------
+  const state = {
+    running: true,
+    t: 0,
+    massRatio: 1.0,
+    launchSpeed: 5.0,
+    launchAngle: 0.0,
+    // stars
+    stars: [],
+    // probe
+    probe: { x:0, y:0, vx:0, vy:0, trail: [] },
+    // metrics
+    ke: 0,
+    speed: 0,
+    period: 0,
+    keHistory: [],
+    keStart: 0,
+    keMax: 0,
+    keMin: Infinity,
+    // camera / world
+    cx: 0, cy: 0,
+    scale: 1,
+    // star orbital phase
+    phase: 0,
+    omega: 0,
+    // gravity vectors for drawing
+    gravVectors: []
+  };
+
+  // ---------- Init / Reset ----------
+  function reset(){
+    state.t = 0;
+    state.phase = 0;
+    state.keHistory = [];
+    state.keStart = 0;
+    state.keMax = 0;
+    state.keMin = Infinity;
+    state.gravVectors = [];
+
+    const m1 = M1_BASE;
+    const m2 = M1_BASE * state.massRatio;
+    const totalM = m1 + m2;
+
+    // Star positions relative to center of mass
+    // star1 at -r1, star2 at +r2 along x-axis initially
+    const r1 = STAR_SEP * (m2 / totalM);
+    const r2 = STAR_SEP * (m1 / totalM);
+
+    // Orbital angular velocity (Kepler-like, scaled)
+    // omega = sqrt(G * totalM / sep^3)
+    state.omega = Math.sqrt(G * totalM / Math.pow(STAR_SEP, 3)) * 0.9;
+
+    state.stars = [
+      { m: m1, r: r1, color: '#fbbf24', glow: 'rgba(251,191,36,', x: -r1, y: 0, vx: 0, vy: 0, radius: 16 },
+      { m: m2, r: r2, color: '#f97316', glow: 'rgba(249,115,22,', x: r2, y: 0, vx: 0, vy: 0, radius: 16 }
+    ];
+
+    // Probe launch: from left side, moving right
+    const launchX = -STAR_SEP * 1.6;
+    const launchY = 0;
+    const ang = state.launchAngle * Math.PI / 180;
+    const spd = state.launchSpeed * 12; // scale km/s to sim px/s
+    state.probe.x = launchX;
+    state.probe.y = launchY;
+    state.probe.vx = Math.cos(ang) * spd;
+    state.probe.vy = Math.sin(ang) * spd;
+    state.probe.trail = [];
+
+    // Camera: center on origin, scale to fit
+    state.cx = 0;
+    state.cy = 0;
+    state.scale = Math.min(W, H) / (STAR_SEP * 4.2);
+
+    // initial KE
+    const v0 = Math.hypot(state.probe.vx, state.probe.vy);
+    state.ke = 0.5 * v0 * v0;
+    state.keStart = state.ke;
+    state.keMax = state.ke;
+    state.keMin = state.ke;
+    state.speed = state.launchSpeed;
+    state.period = (2 * Math.PI / state.omega);
+  }
+
+  // ---------- Physics step ----------
+  function physicsStep(dt){
+    state.t += dt;
+    state.phase += state.omega * dt;
+
+    // Update star positions (circular orbits around COM)
+    const s1 = state.stars[0], s2 = state.stars[1];
+    s1.x = -s1.r * Math.cos(state.phase);
+    s1.y = -s1.r * Math.sin(state.phase);
+    s2.x =  s2.r * Math.cos(state.phase);
+    s2.y =  s2.r * Math.sin(state.phase);
+
+    // Probe gravity from both stars
+    const p = state.probe;
+    let ax = 0, ay = 0;
+    const gv = [];
+
+    for (const s of state.stars){
+      const dx = s.x - p.x;
+      const dy = s.y - p.y;
+      const dist2 = dx*dx + dy*dy + 25; // softening
+      const dist = Math.sqrt(dist2);
+      const f = G * s.m / dist2;
+      const fx = f * dx / dist;
+      const fy = f * dy / dist;
+      ax += fx;
+      ay += fy;
+      gv.push({ x: p.x, y: p.y, fx: fx * 0.0008, fy: fy * 0.0008, color: s.color });
+    }
+
+    // Symplectic Euler
+    p.vx += ax * dt;
+    p.vy += ay * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+
+    state.gravVectors = gv;
+
+    // Trail
+    p.trail.push({ x: p.x, y: p.y });
+    if (p.trail.length > 260) p.trail.shift();
+
+    // Metrics
+    const v = Math.hypot(p.vx, p.vy);
+    state.ke = 0.5 * v * v;
+    state.speed = v / 12; // back to km/s
+    if (state.ke > state.keMax) state.keMax = state.ke;
+    if (state.ke < state.keMin) state.keMin = state.ke;
+
+    // History for sparkline
+    state.keHistory.push(state.ke);
+    if (state.keHistory.length > 240) state.keHistory.shift();
+
+    // Reset if probe flies too far away
+    const distFromCenter = Math.hypot(p.x, p.y);
+    if (distFromCenter > STAR_SEP * 6 || state.t > 60){
+      // keep running but wrap? Better: reset probe only
+      // We'll reset the whole experiment to keep it interactive
+      if (distFromCenter > STAR_SEP * 6){
+        reset();
+      }
+    }
+  }
+
+  // ---------- World -> Screen ----------
+  function w2s(x, y){
+    return {
+      x: W/2 + (x - state.cx) * state.scale,
+      y: H/2 + (y - state.cy) * state.scale
+    };
+  }
+
+  // ---------- Drawing ----------
+  function drawGrid(){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(51,65,85,0.35)';
+    ctx.lineWidth = 1;
+    const step = 40;
+    const ox = (W/2) % step;
+    const oy = (H/2) % step;
+    ctx.beginPath();
+    for (let x = ox; x < W; x += step){
+      ctx.moveTo(x, 0); ctx.lineTo(x, H);
+    }
+    for (let y = oy; y < H; y += step){
+      ctx.moveTo(0, y); ctx.lineTo(W, y);
+    }
+    ctx.stroke();
+
+    // center crosshair
+    ctx.strokeStyle = 'rgba(56,189,248,0.12)';
+    ctx.beginPath();
+    ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H);
+    ctx.moveTo(0, H/2); ctx.lineTo(W, H/2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawStars(){
+    for (const s of state.stars){
+      const p = w2s(s.x, s.y);
+      const rad = s.radius * Math.max(0.7, state.scale * 1.2);
+
+      // outer glow
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rad * 4);
+      grad.addColorStop(0, s.glow + '0.55)');
+      grad.addColorStop(0.4, s.glow + '0.18)');
+      grad.addColorStop(1, s.glow + '0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, rad * 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // core
+      ctx.save();
+      ctx.shadowColor = s.color;
+      ctx.shadowBlur = 24;
+      ctx.fillStyle = s.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // inner highlight
+      const g2 = ctx.createRadialGradient(p.x - rad*0.3, p.y - rad*0.3, 0, p.x, p.y, rad);
+      g2.addColorStop(0, 'rgba(255,255,255,0.9)');
+      g2.addColorStop(0.5, 'rgba(255,255,255,0.15)');
+      g2.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+      ctx.fill();
+
+      // label
+      ctx.fillStyle = 'rgba(226,232,240,0.7)';
+      ctx.font = '11px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(s === state.stars[0] ? 'M₁' : 'M₂', p.x, p.y - rad - 8);
+    }
+  }
+
+  function drawGravVectors(){
+    if (!state.gravVectors.length) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(244,63,94,0.55)';
+    ctx.fillStyle = 'rgba(244,63,94,0.8)';
+    ctx.lineWidth = 1.2;
+    for (const g of state.gravVectors){
+      const a = w2s(g.x, g.y);
+      const b = w2s(g.x + g.fx, g.y + g.fy);
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      // arrowhead
+      const ang = Math.atan2(dy, dx);
+      const ah = 5;
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y);
+      ctx.lineTo(b.x - ah*Math.cos(ang - 0.4), b.y - ah*Math.sin(ang - 0.4));
+      ctx.lineTo(b.x - ah*Math.cos(ang + 0.4), b.y - ah*Math.sin(ang + 0.4));
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawTrail(){
+    const tr = state.probe.trail;
+    if (tr.length < 2) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 1; i < tr.length; i++){
+      const a = w2s(tr[i-1].x, tr[i-1].y);
+      const b = w2s(tr[i].x, tr[i].y);
+      const t = i / tr.length;
+      ctx.strokeStyle = `rgba(168,85,247,${0.05 + t * 0.75})`;
+      ctx.lineWidth = 1 + t * 2.2;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawProbe(){
+    const p = w2s(state.probe.x, state.probe.y);
+    // glow
+    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 22);
+    grad.addColorStop(0, 'rgba(56,189,248,0.9)');
+    grad.addColorStop(0.4, 'rgba(56,189,248,0.3)');
+    grad.addColorStop(1, 'rgba(56,189,248,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.save();
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = '#e0f2fe';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // velocity vector
+    const vx = state.probe.vx, vy = state.probe.vy;
+    const vlen = Math.hypot(vx, vy);
+    if (vlen > 0.01){
+      const scaleV = 0.6;
+      const ex = p.x + vx * scaleV;
+      const ey = p.y + vy * scaleV;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(56,189,248,0.9)';
+      ctx.fillStyle = 'rgba(56,189,248,0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      const ang = Math.atan2(ey - p.y, ex - p.x);
+      const ah = 7;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - ah*Math.cos(ang - 0.4), ey - ah*Math.sin(ang - 0.4));
+      ctx.lineTo(ex - ah*Math.cos(ang + 0.4), ey - ah*Math.sin(ang + 0.4));
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawHUD(){
+    ctx.save();
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.fillStyle = 'rgba(148,163,184,0.85)';
+    ctx.textAlign = 'left';
+    ctx.fillText(`t = ${state.t.toFixed(2)} s`, 14, H - 14);
+    ctx.textAlign = 'right';
+    ctx.fillText(`KE = ${state.ke.toFixed(1)}`, W - 14, H - 14);
+    ctx.restore();
+  }
+
+  function draw(){
+    ctx.clearRect(0, 0, W, H);
+
+    // background gradient
+    const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*0.7);
+    bg.addColorStop(0, 'rgba(15,23,42,1)');
+    bg.addColorStop(1, 'rgba(2,6,23,1)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    drawGrid();
+    drawGravVectors();
+    drawTrail();
+    drawStars();
+    drawProbe();
+    drawHUD();
+  }
+
+  // ---------- Sparkline ----------
+  function drawSpark(){
+    const w = spark.width / DPR;
+    const h = spark.height / DPR;
+    sctx.clearRect(0, 0, w, h);
+
+    // grid
+    sctx.strokeStyle = 'rgba(51,65,85,0.4)';
+    sctx.lineWidth = 1;
+    sctx.beginPath();
+    for (let i = 1; i < 4; i++){
+      const y = (h / 4) * i;
+      sctx.moveTo(0, y); sctx.lineTo(w, y);
+    }
+    sctx.stroke();
+
+    const hist = state.keHistory;
+    if (hist.length < 2) return;
+
+    let mn = Infinity, mx = -Infinity;
+    for (const v of hist){ if (v < mn) mn = v; if (v > mx) mx = v; }
+    if (mx - mn < 1e-6){ mx = mn + 1; }
+    const pad = 4;
+    const plotW = w - pad*2;
+    const plotH = h - pad*2;
+
+    // fill
+    sctx.beginPath();
+    for (let i = 0; i < hist.length; i++){
+      const x = pad + (i / (hist.length - 1)) * plotW;
+      const y = pad + plotH - ((hist[i] - mn) / (mx - mn)) * plotH;
+      if (i === 0) sctx.moveTo(x, y); else sctx.lineTo(x, y);
+    }
+    const lastX = pad + plotW;
+    sctx.lineTo(lastX, h - pad);
+    sctx.lineTo(pad, h - pad);
+    sctx.closePath();
+    const grad = sctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(34,197,94,0.35)');
+    grad.addColorStop(1, 'rgba(34,197,94,0)');
+    sctx.fillStyle = grad;
+    sctx.fill();
+
+    // line
+    sctx.beginPath();
+    for (let i = 0; i < hist.length; i++){
+      const x = pad + (i / (hist.length - 1)) * plotW;
+      const y = pad + plotH - ((hist[i] - mn) / (mx - mn)) * plotH;
+      if (i === 0) sctx.moveTo(x, y); else sctx.lineTo(x, y);
+    }
+    sctx.strokeStyle = '#22c55e';
+    sctx.lineWidth = 1.6;
+    sctx.shadowColor = '#22c55e';
+    sctx.shadowBlur = 6;
+    sctx.stroke();
+    sctx.shadowBlur = 0;
+
+    // head dot
+    const hx = pad + plotW;
+    const hy = pad + plotH - ((hist[hist.length-1] - mn) / (mx - mn)) * plotH;
+    sctx.fillStyle = '#86efac';
+    sctx.beginPath();
+    sctx.arc(hx, hy, 2.5, 0, Math.PI * 2);
+    sctx.fill();
+  }
+
+  // ---------- Metrics DOM ----------
+  const elKE = document.getElementById('mKE');
+  const elSpeed = document.getElementById('mSpeed');
+  const elPeriod = document.getElementById('mPeriod');
+  const elDelta = document.getElementById('mDelta');
+
+  function updateMetrics(){
+    elKE.textContent = state.ke.toFixed(2);
+    elSpeed.textContent = state.speed.toFixed(2);
+    elPeriod.textContent = state.period.toFixed(2);
+    const delta = state.ke - state.keStart;
+    elDelta.textContent = (delta >= 0 ? '+' : '') + delta.toFixed(2);
+    elDelta.style.color = delta >= 0 ? '#4ade80' : '#f87171';
+  }
+
+  // ---------- Main loop ----------
+  let lastTime = performance.now();
+  let acc = 0;
+
+  function loop(now){
+    const dtReal = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+
+    if (state.running){
+      acc += dtReal;
+      const fixed = DT;
+      let steps = 0;
+      while (acc >= fixed && steps < 8){
+        for (let i = 0; i < SUBSTEPS; i++){
+          physicsStep(fixed / SUBSTEPS);
+        }
+        acc -= fixed;
+        steps++;
+      }
+    }
+
+    draw();
+    drawSpark();
+    updateMetrics();
+
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- Controls ----------
+  const massSlider = document.getElementById('mass_ratio');
+  const speedSlider = document.getElementById('launch_speed');
+  const angleSlider = document.getElementById('launch_angle');
+  const vMass = document.getElementById('vMass');
+  const vSpeed = document.getElementById('vSpeed');
+  const vAngle = document.getElementById('vAngle');
+
+  massSlider.addEventListener('input', () => {
+    state.massRatio = parseFloat(massSlider.value);
+    vMass.textContent = state.massRatio.toFixed(2);
+    reset();
+  });
+  speedSlider.addEventListener('input', () => {
+    state.launchSpeed = parseFloat(speedSlider.value);
+    vSpeed.textContent = state.launchSpeed.toFixed(1);
+    reset();
+  });
+  angleSlider.addEventListener('input', () => {
+    state.launchAngle = parseFloat(angleSlider.value);
+    vAngle.textContent = state.launchAngle.toFixed(0);
+    reset();
+  });
+
+  const btnPause = document.getElementById('btnPause');
+  btnPause.addEventListener('click', () => {
+    state.running = !state.running;
+    btnPause.textContent = state.running ? '⏸ 暂停' : '▶ 继续';
+    btnPause.classList.toggle('bg-emerald-700/60', !state.running);
+  });
+
+  const btnReset = document.getElementById('btnReset');
+  btnReset.addEventListener('click', () => {
+    reset();
+    state.running = true;
+    btnPause.textContent = '⏸ 暂停';
+    btnPause.classList.remove('bg-emerald-700/60');
+  });
+
+  // ---------- Boot ----------
+  resize();
+  reset();
+  requestAnimationFrame(loop);
+
+  // Re-resize after layout settles
+  setTimeout(() => { resize(); }, 60);
+  window.addEventListener('load', () => { resize(); });
+
+})();
+</script>
+</body>
+</html>

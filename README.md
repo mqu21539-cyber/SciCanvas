@@ -2,7 +2,9 @@
 
 # SciCanvas
 
-### Turn Any Textbook Paragraph or Paper into a Live 2D Interactive Lab in 10 Seconds
+### Turn Any Textbook Paragraph or Paper into a Playable 2D Lab
+
+⏱ **10 秒出科学蓝图 · 约 90 秒出可玩沙盒**（双 Agent 串行生成，复杂概念更久）
 
 [![GitHub Stars](https://img.shields.io/github/stars/your-username/SciCanvas?style=flat)](https://github.com/your-username/SciCanvas/stargazers)
 [![DeepSeek Harness](https://img.shields.io/badge/powered%20by-DeepSeek%20Harness-4d6bfe)](https://github.com/deepseek-ai/deepseek-harness)

@@ -42,6 +42,7 @@ export default function SciCanvasApp() {
   const [plan, setPlan] = useState<LabPlan | null>(null);
   const [htmlCode, setHtmlCode] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [elapsed, setElapsed] = useState(0);
   const [viewMode, setViewMode] = useState<"preview" | "code">("preview");
   const handleGenerate = async (inputPrompt = prompt) => {
     setLoading(true);
@@ -65,6 +66,17 @@ export default function SciCanvasApp() {
       setLoading(false);
     }
   };
+  // 等待期间计时：真实耗时 70–170s，必须让用户看到「还在动」，否则会被当成卡死
+  useEffect(() => {
+    if (!loading) {
+      setElapsed(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [loading]);
+
   // 监听沙盒内部 JS 报错并触发自动自愈修复
   // 同一份产物最多自愈 2 次：超过则停止，避免「修不好 -> 再报错 -> 再修」的无限循环
   const healBudget = useRef(2);
@@ -205,10 +217,36 @@ export default function SciCanvasApp() {
             </div>
           )}
           {!htmlCode ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-8 text-center">
-              <div className="text-5xl mb-3">🧪</div>
-              <p className="text-sm">点击左侧预设案例或输入任意科学概念，10 秒生成专属互动实验室</p>
-            </div>
+            loading ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                <div className="w-full max-w-md space-y-5">
+                  <div className="text-5xl">⚗️</div>
+                  <p className="text-sm font-medium text-slate-200">
+                    {elapsed < 15
+                      ? "① 正在拆解物理量与参数区间…"
+                      : elapsed < 75
+                        ? "② 正在编写 Canvas 画布代码…"
+                        : "③ 代码较长，仍在生成中（复杂概念会更久）…"}
+                  </p>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 transition-all duration-1000"
+                      style={{ width: `${Math.min(95, Math.round((elapsed / 90) * 100))}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <span>双 Agent 串行生成中，请勿关闭页面</span>
+                    <span className="font-mono tabular-nums text-cyan-400">已用时 {elapsed}s</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-8 text-center">
+                <div className="text-5xl mb-3">🧪</div>
+                <p className="text-sm">点击左侧预设案例或输入任意科学概念</p>
+                <p className="mt-1.5 text-xs text-slate-600">10 秒出科学蓝图，约 90 秒出可玩沙盒</p>
+              </div>
+            )
           ) : viewMode === "preview" ? (
             <iframe
               srcDoc={htmlCode}
