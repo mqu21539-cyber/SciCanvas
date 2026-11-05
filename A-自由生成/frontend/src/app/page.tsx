@@ -1,5 +1,6 @@
 "use client";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import MathFormula from "../components/MathFormula";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8010";
 
@@ -435,8 +436,9 @@ export default function SciCanvasApp() {
                 <h2 className="text-base font-bold text-cyan-400">{plan.title}</h2>
                 <p className="text-xs text-slate-400 mt-1">{plan.subtitle}</p>
               </div>
-              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 font-mono text-xs text-indigo-300">
-🧮 核心定律：{plan.formula_latex}
+              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-indigo-300">
+                <span className="font-mono text-slate-400">🧮 核心定律：</span>
+                <MathFormula tex={plan.formula_latex} className="text-sm text-indigo-200" />
               </div>
               {plan.intuition_challenge && (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-200">
