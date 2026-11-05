@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 import cache
+import arxiv
 
 # backend/ -> A-自由生成/ -> 仓库根 -> B-模板化生成
 _DEFAULT_TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "B-模板化生成"
@@ -211,22 +212,35 @@ def route_and_generate(prompt: str, strategy: str = "auto", emit=None) -> dict:
     emit 用于 SSE 流式接口推送阶段事件。
     """
     started = time.time()
-    key = cache.key_for(prompt, strategy)
+
+    # 提示词里出现 arXiv 编号时，先抓摘要再生成（缓存键也跟着换成展开后的文本）
+    expanded_prompt, paper = arxiv.expand(prompt)
+    if paper:
+        _emit(emit, "arxiv", title=paper["title"], id=paper["id"])
+    key = cache.key_for(expanded_prompt, strategy)
 
     hit = cache.get(key)
     if hit:
         _emit(emit, "cache_hit")
         return {
             **hit,
+            **_arxiv_meta(paper),
             "elapsed_ms": int((time.time() - started) * 1000),
             "cached": True,
         }
 
-    out = _generate(prompt, strategy, emit=emit)
+    out = _generate(expanded_prompt, strategy, emit=emit)
     payload = {k: v for k, v in out.items() if k not in ("cached", "elapsed_ms")}
-    cache.put(key, prompt, strategy, payload)
+    cache.put(key, expanded_prompt, strategy, payload)
     return {
         **out,
+        **_arxiv_meta(paper),
         "elapsed_ms": int((time.time() - started) * 1000),
         "cached": False,
     }
+
+
+def _arxiv_meta(paper: dict | None) -> dict:
+    if not paper:
+        return {}
+    return {"arxiv": {"id": paper["id"], "title": paper["title"], "url": paper["url"]}}

@@ -118,6 +118,7 @@ python generator.py --text "演示单摆阻尼振动" --out out/demo.html   # �
 | **混合路由** | 模板命中 ≈2 秒，未命中回落双 Agent ≈25 秒 |
 | **流式进度** | 分诊 / Planner / Coder 阶段实时推送，长任务每 3 秒心跳 |
 | **结果缓存** | 同一提示词再点一次：0 token、0.04 秒；`/api/cache` 可查看与清空 |
+| **arXiv 直读** | 直接贴 `arXiv:1706.03762`，后端自动抓标题与摘要再生成，不用手抄正文 |
 | **可取消 / 不丢稿** | 生成可随时取消，刷新页面自动恢复上次实验 |
 | **一键导出** | 任意实验都能下成单个 `.html`，离线可用、可嵌 Notion |
 | **dsh 原生插件** | `render_science_lab` / `heal_science_lab`，生成即登记展厅 |

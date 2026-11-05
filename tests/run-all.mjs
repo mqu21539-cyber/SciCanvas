@@ -40,6 +40,7 @@ const TESTS = [
   { id: '05', name: '前端路由徽标', cmd: 'node', file: '05-ui-route.mjs', slow: true, needsServices: true },
   { id: '06', name: '展厅清单一致性', cmd: 'node', file: '06-gallery.mjs', slow: false },
   { id: '07', name: '交互功能（猜卡 / 双沙盒）', cmd: 'node', file: '07-ui-features.mjs', slow: true, needsServices: true },
+  { id: '08', name: 'arXiv 摘要直读', cmd: PY, file: '08-arxiv.py', slow: true, needsServices: true },
 ]
 
 if (args.includes('--list')) {

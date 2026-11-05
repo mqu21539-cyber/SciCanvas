@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8010";
@@ -47,6 +47,8 @@ export default function SciCanvasApp() {
   const [engine, setEngine] = useState<
     { mode: "template" | "agent"; template?: string | null; ms: number; cached?: boolean } | null
   >(null);
+  // 如果输入里带 arXiv 编号，后端会抓摘要，这里存一下用于展示出处
+  const [paper, setPaper] = useState<{ id: string; title: string; url: string } | null>(null);
   const [viewMode, setViewMode] = useState<"preview" | "code">("preview");
   // 「先猜后试」：用户先选一个预测，再去拖滑块验证
   const [guess, setGuess] = useState<string | null>(null);
@@ -95,6 +97,10 @@ export default function SciCanvasApp() {
         // 后端心跳：让进度条在长任务里继续挪，别停在原地
         setProgress((p) => Math.min(94, p + 3));
         break;
+      case "arxiv":
+        setStage("📄 已抓到论文摘要，正在理解论文机制…");
+        setProgress(20);
+        break;
       default:
         break;
     }
@@ -109,6 +115,7 @@ export default function SciCanvasApp() {
     setLoading(true);
     setStage("① 正在连接后端…");
     setProgress(4);
+    setPaper(null);
     try {
       setError("");
       const res = await fetch(`${API_BASE}/api/generate/stream`, {
@@ -162,12 +169,14 @@ export default function SciCanvasApp() {
         template?: string | null;
         elapsed_ms?: number;
         cached?: boolean;
+        arxiv?: { id: string; title: string; url: string } | null;
       };
       setPlan(data.plan);
       setHtmlCode(data.html);
       setGuess(null);
       setSplitNonce((n) => n + 1);
       setRestored(false);
+      setPaper(data.arxiv ?? null);
       setEngine({
         mode: data.mode === "template" ? "template" : "agent",
         template: data.template ?? null,
@@ -302,6 +311,17 @@ export default function SciCanvasApp() {
               {engine.cached && <span className="ml-1.5 opacity-80">· 缓存命中</span>}
             </span>
           )}
+          {paper && (
+            <a
+              href={paper.url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs px-2.5 py-0.5 rounded-full border bg-sky-500/10 text-sky-300 border-sky-500/25 hover:bg-sky-500/20 transition max-w-[280px] truncate"
+              title={`arXiv:${paper.id} · ${paper.title}`}
+            >
+              📄 arXiv:{paper.id}
+            </a>
+          )}
         </div>
         {htmlCode && (
           <div className="flex gap-3">
@@ -362,7 +382,7 @@ export default function SciCanvasApp() {
               onChange={(e) => setPrompt(e.target.value)}
               rows={5}
               className="w-full rounded-lg bg-slate-950 border border-slate-800 p-3 text-sm text-slate-200 focus:outline-none focus:border-cyan-500"
-              placeholder="例如：演示傅里叶级数如何用多个旋转圆合成方波..."
+              placeholder="例如：演示傅里叶级数如何用多个旋转圆合成方波… 也可以直接贴 arXiv:1706.03762"
             />
             <div className="flex flex-wrap gap-2">
               {PRESETS.map((item, idx) => (
