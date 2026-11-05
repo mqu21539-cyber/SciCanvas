@@ -137,7 +137,41 @@ agents.get_client = lambda: stub  # type: ignore[assignment]
 print("回落后 coder_mode =", fallback_out.get("coder_mode"), "· 调用次数 =", len(bad.calls))
 assert fallback_out["coder_mode"] == "full", fallback_out.get("coder_mode")
 assert fallback_out["html"].startswith("<!DOCTYPE html>")
-assert len(bad.calls) == 3, len(bad.calls)
+# planner + coder + 重写一次 + 回落整份 = 4 次
+assert len(bad.calls) == 4, len(bad.calls)
+
+
+# 只错一次、重写能救回来的情况：应该留在 holof 路径，而不是回落
+GOOD_JS = (
+    "window.reset = function(){ HOLO.L0('<line x1=\"0\" y1=\"200\" x2=\"700\" y2=\"200\"/>'); };\n"
+    "window.frame = function(dt, t){ HOLO.L1('<circle cx=\"350\" cy=\"200\" r=\"8\"/>'); "
+    "HOLO.L2(''); HOLO.L3(''); HOLO.telemetry(0.5); };"
+)
+
+retry_client = StubClient()
+retry_client.chat = _Chat(retry_client)
+_coder_calls = {"n": 0}
+
+
+def _retry_create(self, **kwargs):
+    system = kwargs["messages"][0]["content"]
+    if "SVG 矢量动画" in system:
+        self.outer.calls.append(kwargs)
+        _coder_calls["n"] += 1
+        if _coder_calls["n"] == 1:
+            return _Resp("这版忘了挂 window.frame")          # 第一次违规
+        return _Resp(GOOD_JS)                                 # 重写给对
+    return _orig(self, **kwargs)
+
+
+_Completions.create = _retry_create
+agents.get_client = lambda: retry_client  # type: ignore[assignment]
+retry_out = agents.generate_lab("演示傅里叶级数合成方波")
+_Completions.create = _orig
+agents.get_client = lambda: stub  # type: ignore[assignment]
+print("重写后 coder_mode =", retry_out.get("coder_mode"), "· 调用次数 =", len(retry_client.calls))
+assert retry_out["coder_mode"] == "holo", retry_out.get("coder_mode")
+assert len(retry_client.calls) == 3, len(retry_client.calls)
 
 fixed = agents.fix_lab_code("<html>broken</html>", "ReferenceError: x is not defined")
 print("fix 输出:", fixed[:60])

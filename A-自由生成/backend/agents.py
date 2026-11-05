@@ -104,19 +104,43 @@ def generate_lab(user_concept: str, on_stage=None) -> dict:
     coder_mode = "holo"
     try:
         html_code = holo_build.build(plan_data, js_snippet)
-    except holo_build.HoloError as e:
-        logger.warning("全息片段不合格（%s），回落整份 HTML 生成", e)
-        stage("fallback")
-        coder_mode = "full"
-        legacy = get_client().chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": CODER_SYSTEM_PROMPT},
-                {"role": "user", "content": f"请严格按照以下 JSON 实验蓝图编写单文件 HTML 交互仿真代码：\n{plan_json_str}"},
-            ],
-            temperature=0.2,
-        )
-        html_code = clean_html_output(legacy.choices[0].message.content)
+    except holo_build.HoloError as first_err:
+        # 先给模型一次"按错误提示重写"的机会，再考虑回落。
+        # 直接从 50 行契约掉到整份 HTML，代价是慢一倍、还可能丢掉四层舞台。
+        stage("coder_retry")
+        logger.info("全息片段不合格（%s），让模型按提示重写一次", first_err)
+        try:
+            retry = get_client().chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": HOLO_CODER_PROMPT},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"实验蓝图（JSON）：\n{plan_json_str}\n\n"
+                            f"你上一版片段不合格，原因是：{first_err}。\n"
+                            "请重新输出片段：必须是纯 JS，必须挂到 window 上"
+                            "（window.reset = function(){...}; window.frame = function(dt, t){...}），"
+                            "不许有 <html>/<style>，不许用 canvas。"
+                        ),
+                    },
+                ],
+                temperature=0.15,
+            )
+            html_code = holo_build.build(plan_data, retry.choices[0].message.content or "")
+        except holo_build.HoloError as second_err:
+            logger.warning("重写仍不合格（%s），回落整份 HTML 生成", second_err)
+            stage("fallback")
+            coder_mode = "full"
+            legacy = get_client().chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": CODER_SYSTEM_PROMPT},
+                    {"role": "user", "content": f"请严格按照以下 JSON 实验蓝图编写单文件 HTML 交互仿真代码：\n{plan_json_str}"},
+                ],
+                temperature=0.2,
+            )
+            html_code = clean_html_output(legacy.choices[0].message.content)
 
     return {"plan": plan_data, "html": html_code, "coder_mode": coder_mode}
 

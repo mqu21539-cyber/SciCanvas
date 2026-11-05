@@ -56,8 +56,8 @@ def validate(js: str) -> None:
         raise HoloError(f"JS 太短（{len(js)} 字符），大概率没写完整")
     if len(js) > MAX_JS:
         raise HoloError(f"JS 太长（{len(js)} 字符），不符合 50 行契约")
-    if not re.search(r"window\.(frame|reset)\s*=", js):
-        raise HoloError("没有定义 window.frame / window.reset")
+    if not re.search(r"(window\.)?(frame|reset)\s*=|function\s+(frame|reset)\s*\(", js):
+        raise HoloError("没有定义 frame / reset")
     if "requestAnimationFrame" in js:
         raise HoloError("底座已在跑循环，片段里不该再写 requestAnimationFrame")
     if re.search(r"<canvas|createElement\(\s*['\"]canvas", js, re.IGNORECASE):
