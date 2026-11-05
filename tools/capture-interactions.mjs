@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * tools/capture-interactions.mjs
  *
@@ -132,7 +132,9 @@ async function sceneSlider() {
   let n = 0
   for (const v of steps) {
     await cdp.eval(`(() => {
-      const el = document.getElementById('n');
+      // 全息底座的滑块是 JS 动态创建的，用 data-k 定位（只有旧模板才有固定 id）
+      const el = document.querySelector('#capsules input[data-k="n"]') || document.getElementById('n');
+      if (!el) return;
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
       setter.call(el, '${v}');
       el.dispatchEvent(new Event('input', { bubbles: true }));

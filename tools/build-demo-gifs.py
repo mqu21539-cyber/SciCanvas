@@ -30,7 +30,7 @@ SPECS = [
         "out": "demo-01-slider.gif",
         "caption": "拖滑块：谐波项数 1 → 25，方波被一点点拼出来",
         "duration": 130,
-        "width": 1000,
+        "width": 900,
     },
     {
         "slug": "selfheal",
@@ -38,14 +38,14 @@ SPECS = [
         "caption": "沙盒报错 → Self-Healing Agent 自动修复 → 重渲染",
         "duration": 560,
         "dedupe": True,
-        "width": 1000,
+        "width": 900,
     },
     {
         "slug": "split",
         "out": "demo-03-split.gif",
         "caption": "一句话生成 → A/B 同屏对比，两边各自独立调参",
         "duration": 420,
-        "width": 1000,
+        "width": 900,
     },
 ]
 
@@ -72,7 +72,7 @@ def decorate(im, caption, font):
     return canvas
 
 
-def dedupe(frames, threshold=0.15):
+def dedupe(frames, threshold=0.28):
     """去掉几乎一样的相邻帧。只在"要等十几秒"的自愈场景用——
     缩略图对比对细微的曲线变化不敏感，短序列直接全留，否则会把动画抽成 PPT。"""
     kept = [frames[0]]
@@ -101,7 +101,7 @@ def build(spec):
     before = len(frames)
     if spec.get("dedupe"):
         frames = dedupe(frames)
-    frames = [decorate(im, spec["caption"], font).convert("P", palette=Image.ADAPTIVE, colors=96) for im in frames]
+    frames = [decorate(im, spec["caption"], font).convert("P", palette=Image.ADAPTIVE, colors=64) for im in frames]
 
     out = os.path.join(ASSETS, spec["out"])
     frames[0].save(
