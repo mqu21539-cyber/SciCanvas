@@ -10,6 +10,29 @@
   <em>上面每一个画面都是真实生成的产物，没有一张是设计稿</em>
 </p>
 
+## 三段真实交互
+
+三张 GIF 都是脚本驱动真实 Chrome 录的，不是后期剪辑。
+
+<table>
+<tr>
+<td width="33%" align="center">
+  <img src="./assets/demo-01-slider.gif" alt="拖动滑块：傅里叶级数项数从 1 加到 25，方波逐渐成形" /><br />
+  <sub><b>① 拖滑块看数学成形</b><br />谐波项数 1 → 25，吉布斯振铃自己长出来</sub>
+</td>
+<td width="33%" align="center">
+  <img src="./assets/demo-02-selfheal.gif" alt="沙盒报错后自动调用修复接口并重渲染" /><br />
+  <sub><b>② 报错了自己爬起来</b><br />沙盒抛异常 → 自动修复 → 重渲染，用户不用刷新</sub>
+</td>
+<td width="33%" align="center">
+  <img src="./assets/demo-03-split.gif" alt="一句话生成后进入 A/B 同屏对比" /><br />
+  <sub><b>③ 一句话生成 + A/B 对比</b><br />两边独立调参，适合讲清"改哪个参数会怎样"</sub>
+</td>
+</tr>
+</table>
+
+复现方法：`node tools/capture-interactions.mjs` 截帧 → `python tools/build-demo-gifs.py` 合成。
+
 本仓库同时存放**两条技术路线**——A 方案已实现可跑，B 方案是已验证思路的原型骨架。
 
 ---

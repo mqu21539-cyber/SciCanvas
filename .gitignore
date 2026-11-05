@@ -27,6 +27,8 @@ B-模板化生成/out/
 
 # --- 素材中间帧（由 tools/capture-frames.mjs 生成，最终合成到 demo.gif）---
 assets/_frames/
+# --- 交互 GIF 的原始帧（capture-interactions.mjs → build-demo-gifs.py）---
+assets/_interactions/
 
 # --- os / editor ---
 .DS_Store

@@ -135,7 +135,9 @@ _JS = r"""
     }
     const set = function(id, v){ const el = document.getElementById(id); if (el) el.textContent = v; };
     set('m_terms', String(S.n));
-    set('m_overshoot', ((maxV - 1) * 100).toFixed(1) + ' %');
+    // 吉布斯过冲的教科书口径是「占跳变高度的比例」：方波跳变 = 2（−1→1），
+    // 所以相对平台幅值的超出量要再除以 2，极限才回到 8.95%
+    set('m_overshoot', ((maxV - 1) / 2 * 100).toFixed(1) + ' %');
     set('m_rms', Math.sqrt(sq / (N + 1)).toFixed(3));
     set('m_f', (S.omega / (2 * Math.PI)).toFixed(2) + ' Hz');
   }
