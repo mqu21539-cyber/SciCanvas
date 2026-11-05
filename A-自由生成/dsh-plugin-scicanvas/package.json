@@ -1,17 +1,22 @@
 {
   "name": "dsh-plugin-scicanvas",
-  "version": "0.1.0",
-  "description": "DeepSeek Harness (dsh) plugin for SciCanvas: Turn any scientific concept or paper into an interactive 2D HTML5 Canvas/SVG lab.",
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
-  "files": [
-    "lib"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "watch": "tsc -w",
-    "prepublishOnly": "npm run build"
+  "version": "0.2.0",
+  "description": "DeepSeek Harness plugin: turn any scientific concept or paper into an interactive 2D lab (SciCanvas).",
+  "type": "module",
+  "private": true,
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
   },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
   "keywords": [
     "deepseek",
     "deepseek-harness",
@@ -22,14 +27,10 @@
     "generative-ui",
     "science-simulation"
   ],
-  "author": "Your Name",
   "license": "MIT",
-  "peerDependencies": {
-    "cordis": ">=4.0.0-rc.9"
-  },
-  "devDependencies": {
-    "@types/node": "^20.14.0",
-    "cordis": "4.0.0-rc.12",
-    "typescript": "^5.5.0"
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
   }
 }
