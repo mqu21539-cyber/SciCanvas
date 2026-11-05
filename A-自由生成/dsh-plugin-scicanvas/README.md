@@ -1,4 +1,4 @@
-# dsh-plugin-scicanvas
+﻿# dsh-plugin-scicanvas
 
 DeepSeek Harness（`dsh`）插件：把任意科学概念、公式或论文段落变成可拖拽的 2D 互动实验，并直接在浏览器打开。
 
@@ -48,7 +48,7 @@ plugin_manager { action: "install_bundle", target: "D:\\SciCanvas\\A-自由生�
     - id: scicanvas
       name: 'dsh-plugin-scicanvas'
       config:
-        backendUrl: 'http://127.0.0.1:8000'   # 本地后端，未启动则自动降级
+        backendUrl: 'http://127.0.0.1:8010'   # 本地后端，未启动则自动降级
         outputDir: './scicanvas-labs'          # 产物目录
         galleryManifest: ''                    # 展厅 manifest.json；给了才登记（留空不登记）
         galleryCategory: 'AI 实时生成'          # 登记时的分类前缀

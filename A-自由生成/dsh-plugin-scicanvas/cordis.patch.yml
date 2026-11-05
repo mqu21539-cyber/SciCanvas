@@ -1,10 +1,10 @@
-# SciCanvas 插件行配置
+﻿# SciCanvas 插件行配置
 # 安装：dsh 里让 Agent 用 plugin_manager { action: install_bundle, target: "<本目录绝对路径>" }
 # 或者把本包放进 profile 的 bundle 列表（不推荐手动改 profile）。
 - insert:
     - id: scicanvas
       name: 'dsh-plugin-scicanvas'
       config:
-        backendUrl: 'http://127.0.0.1:8000'
+        backendUrl: 'http://127.0.0.1:8010'
         outputDir: './scicanvas-labs'
         autoOpenBrowser: true

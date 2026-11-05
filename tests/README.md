@@ -1,4 +1,4 @@
-# 回归测试
+﻿# 回归测试
 
 一条命令跑完全部可自动化的验证：
 
@@ -62,7 +62,7 @@ New-Item -ItemType Junction -Path "A-自由生成\dsh-plugin-scicanvas\node_modu
 **后端 / 前端**：02–05 需要它们在线
 
 ```bash
-cd A-自由生成/backend && .venv/Scripts/python -m uvicorn main:app --port 8000
+cd A-自由生成/backend && .venv/Scripts/python -m uvicorn main:app --port 8010
 cd A-自由生成/frontend && pnpm dev
 ```
 

@@ -75,12 +75,15 @@ D:\SciCanvas\
 cd A-自由生成/backend
 pip install -r requirements.txt
 cp .env.example .env        # 填入 DEEPSEEK_API_KEY
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8010
 ```
 
-> 若发现流式首帧要等 1–3 秒才出现：先确认 8000 端口上没有重复监听，再试换个端口
-> （实测本机 8000 端口会被外部软件拖慢，8003/8021 上首帧只要 2ms）。
-> 与 uvicorn 的 `--http` 实现无关，详见 `docs/技术可行性评估.md`。
+> **默认端口是 8010，不是 8000**。实测本机 8000 端口会被外部软件（防火墙/杀软）拖慢，
+> SSE 首帧要等 1–3 秒；同代码在 8002/8003/8010/8021 上首帧只要 2–7 毫秒。
+> 这与 uvicorn 的 `--http` 实现无关，换端口即可。
+>
+> 必须换回去时：改 `A-自由生成/frontend/src/app/page.tsx` 的 `API_BASE`、
+> `backend/start|stop_backend.cmd` 的 `PORT`、`cordis.yml` 的 `backendUrl`，四处要一致。
 
 ```bash
 cd A-自由生成/frontend

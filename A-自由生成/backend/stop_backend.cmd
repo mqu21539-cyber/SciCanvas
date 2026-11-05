@@ -1,12 +1,12 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableExtensions
 title SciCanvas Backend Stopper
 
-set "PORT=8000"
+set "PORT=8010"
 set "PID="
 
-rem 找出 8000 上监听进程的 PID（netstat -ano 第 5 列）
+rem 找出 8010 上监听进程的 PID（netstat -ano 第 5 列）
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr /C:":%PORT% " ^| findstr /C:"LISTENING"') do set "PID=%%p"
 
 if not defined PID (

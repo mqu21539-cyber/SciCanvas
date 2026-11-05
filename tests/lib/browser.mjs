@@ -155,7 +155,7 @@ export async function withChrome(fn, { port = 0, width = 1440, height = 1000 } =
 export async function probeServices() {
   const out = {}
   for (const [key, url] of [
-    ['backend', 'http://127.0.0.1:8000/api/health'],
+    ['backend', 'http://127.0.0.1:8010/api/health'],
     ['frontend', 'http://localhost:3000'],
   ]) {
     try {

@@ -1,9 +1,9 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableExtensions
 title SciCanvas Backend Launcher
 
-set "PORT=8000"
+set "PORT=8010"
 set "HERE=%~dp0"
 set "HEALTH=http://127.0.0.1:%PORT%/api/health"
 

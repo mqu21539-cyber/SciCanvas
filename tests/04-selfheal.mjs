@@ -4,7 +4,7 @@
  * 流程：打开前端 → 触发一次生成 → 向页面注入 SCICANVAS_ERROR →
  *       断言自愈徽标出现、/api/fix 返回、沙盒内容被替换。
  *
- * 需要：后端 :8000、前端 :3000、Chrome、有效 DEEPSEEK_API_KEY（会真实调用一次）。
+ * 需要：后端 :8010、前端 :3000、Chrome、有效 DEEPSEEK_API_KEY（会真实调用一次）。
  */
 import { suite, skipped } from './lib/assert.mjs'
 import { findChrome, probeServices, sleep, startGeneration, waitHydrated, withChrome } from './lib/browser.mjs'

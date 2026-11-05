@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""02 · 混合路由测试（需要后端在 127.0.0.1:8000 运行）
+"""02 · 混合路由测试（需要后端在 127.0.0.1:8010 运行）
 
 验证：模板命中走 B（快）、未命中回落 A（慢）、strategy 强制生效。
 """
@@ -13,7 +13,7 @@ except ImportError:
     print("  SKIP  缺 httpx（用 backend 的 venv 跑）")
     sys.exit(2)
 
-API = "http://127.0.0.1:8000"
+API = "http://127.0.0.1:8010"
 
 try:
     health = httpx.get(f"{API}/api/health", timeout=4).json()

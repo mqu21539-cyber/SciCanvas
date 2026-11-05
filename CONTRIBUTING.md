@@ -1,4 +1,4 @@
-# 贡献指南
+﻿# 贡献指南
 
 感谢你想给 SciCanvas 添砖加瓦。这个项目同时有两套实现（A 自由生成 / B 模板化），
 改动前先确认你改的是哪一条路线。
@@ -10,7 +10,7 @@
 cd A-自由生成/backend
 python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 cp .env.example .env        # 填入 DEEPSEEK_API_KEY
-.venv/Scripts/python -m uvicorn main:app --port 8000
+.venv/Scripts/python -m uvicorn main:app --port 8010
 
 # 前端
 cd A-自由生成/frontend

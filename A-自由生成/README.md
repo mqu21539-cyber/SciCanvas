@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 # SciCanvas
 
@@ -48,7 +48,7 @@ cd SciCanvas/A-自由生成/backend
 pip install -r requirements.txt
 cp .env.example .env          # Windows: copy .env.example .env
 # Add your DEEPSEEK_API_KEY inside .env
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8010
 ```
 
 ### 2. Launch Frontend Studio
@@ -61,7 +61,7 @@ npm run dev
 
 Open <http://localhost:3000> and click any preset experiment or type your own concept.
 
-> The frontend reads `NEXT_PUBLIC_API_BASE` (default `http://127.0.0.1:8000`).
+> The frontend reads `NEXT_PUBLIC_API_BASE` (default `http://127.0.0.1:8010`).
 > If you change it, update `ALLOWED_ORIGINS` in `backend/.env` as well.
 
 ### 3. Try the Zero-Install Gallery

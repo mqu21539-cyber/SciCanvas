@@ -1,4 +1,4 @@
-/**
+﻿/**
  * dsh-plugin-scicanvas —— DeepSeek Harness 插件（Host bundle）
  *
  * 依据：dsh 内置技能 cordis-plugin-development 的 host-plugin.md
@@ -93,7 +93,7 @@ async function openFileInBrowser(filePath) {
 }
 
 export function apply(ctx, config = {}) {
-  const backendUrl = config.backendUrl || 'http://127.0.0.1:8000'
+  const backendUrl = config.backendUrl || 'http://127.0.0.1:8010'
   const apiKey = config.deepseekApiKey || process.env.DEEPSEEK_API_KEY || ''
   const baseUrl = config.deepseekBaseUrl || process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'
   const outputDir = path.resolve(process.cwd(), config.outputDir || './scicanvas-labs')
