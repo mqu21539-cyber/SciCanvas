@@ -43,6 +43,10 @@ export default function SciCanvasApp() {
   const [htmlCode, setHtmlCode] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [elapsed, setElapsed] = useState(0);
+  // 后端路由结果：走模板（快）还是双 Agent（慢），用于顶部徽标
+  const [engine, setEngine] = useState<
+    { mode: "template" | "agent"; template?: string | null; ms: number } | null
+  >(null);
   const [viewMode, setViewMode] = useState<"preview" | "code">("preview");
   const handleGenerate = async (inputPrompt = prompt) => {
     setLoading(true);
@@ -59,6 +63,11 @@ export default function SciCanvasApp() {
       }
       setPlan(data.plan);
       setHtmlCode(data.html);
+      setEngine({
+        mode: data.mode === "template" ? "template" : "agent",
+        template: data.template ?? null,
+        ms: data.elapsed_ms ?? 0,
+      });
       setViewMode("preview");
     } catch (err) {
       setError(`生成失败：${(err as Error).message}。请确认后端已在 ${API_BASE} 启动。`);
@@ -130,6 +139,20 @@ export default function SciCanvasApp() {
           <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
             Powered by DeepSeek & DSH
           </span>
+          {engine && (
+            <span
+              className={`text-xs px-2.5 py-0.5 rounded-full border ${
+                engine.mode === "template"
+                  ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/25"
+                  : "bg-indigo-500/10 text-indigo-300 border-indigo-500/25"
+              }`}
+              title={engine.mode === "template" ? "命中参数化模板，生成稳定且快" : "未命中模板，走双 Agent 自由生成"}
+            >
+              {engine.mode === "template"
+                ? `模板 · ${engine.template} · ${(engine.ms / 1000).toFixed(1)}s`
+                : `双 Agent · ${(engine.ms / 1000).toFixed(1)}s`}
+            </span>
+          )}
         </div>
         {htmlCode && (
           <div className="flex gap-3">

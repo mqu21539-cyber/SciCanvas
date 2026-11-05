@@ -40,13 +40,30 @@ B-模板化生成/
 ├── generator.py            外壳 + 渲染 + 模型选模板 + CLI
 ├── templates/
 │   ├── __init__.py         模板注册表 + 控件/指标 HTML 生成
-│   ├── oscillator.py       阻尼单摆
-│   └── projectile.py       抛体运动（含空气阻力）
+│   ├── oscillator.py       阻尼单摆（振动）
+│   ├── projectile.py       抛体运动（含空气阻力）
+│   ├── wave.py             行波叠加与驻波
+│   ├── efield.py           双点电荷电场线
+│   ├── orbit.py            中心力场轨道（开普勒）
+│   └── lorenz.py           洛伦兹吸引子（混沌）
 ├── examples/
 │   ├── plan-oscillator.json
 │   └── plan-projectile.json
 └── out/                    渲染产物（git 忽略）
 ```
+
+## 模板清单
+
+| name | 学科 | 核心模型 | 参数 |
+| :--- | :--- | :--- | :--- |
+| `oscillator` | 经典力学/振动 | `θ'' = −(g/L)sinθ − cθ'` | 摆长 L、阻尼 c、重力 g |
+| `projectile` | 经典力学/运动学 | `a = −k·v − g·ŷ` | 初速 v₀、发射角 α、阻力 k |
+| `wave` | 波动学 | `y = sin(kx−ωt) + sin(kx−ωt+φ)` | 波长 λ、波速 v、相位差 φ |
+| `efield` | 电磁学 | `E = kq/r²`，场线积分 | q₁、q₂、间距 d |
+| `orbit` | 天体物理 | `a = −μr̂/r²`，速度 Verlet | μ、r₀、速度倍率 |
+| `lorenz` | 混沌 | `ẋ=σ(y−x)` 等，RK4 | σ、ρ、β、初始偏差 ε |
+
+六者都在真实 Chrome 里验证过：**无 JS 异常、canvas 实际绘制、滑块注入正常（28/28）**。
 
 ---
 
@@ -105,7 +122,27 @@ def build(params, copy):
 | 指标元素 `id` 必须是 `m_<metrics[].id>` | 模板按 id 写数值 |
 | 数值显示 span 的 `id` 必须是 `val_<id>` | 拖动时刷新读数 |
 | 必须用 `requestAnimationFrame` 且按固定步长积分 | 不同刷新率下轨迹一致 |
-| 必须留 `#btnPause` / `#btnReset` | 外壳不生成按钮，由模板负责（见现有模板） |
+| 按钮由模板自己写（`#btnPause` / `#btnReset` 是约定，非强制） | 静态模板（如电场）不需要暂停 |
+
+## 混合路由（已接进 A 的后端）
+
+`A-自由生成/backend/router.py` 实现了「模板优先、Agent 兜底」：
+
+```
+用户输入 ──► 分诊（~1s）──命中──► B 渲染（立即）──► 总耗时约 1.3s
+                  └────未命中────► A 双 Agent ────► 总耗时约 20–27s
+```
+
+实测四例：
+
+| 输入 | 路由 | 耗时 |
+| :--- | :--- | :--- |
+| 单摆阻尼振动 | `template/oscillator`（置信度 0.98） | **1.3 s** |
+| 抛体 + 空气阻力 | `template/projectile`（0.98） | **1.6 s** |
+| 傅里叶级数合成方波 | `agent`（无对应模板） | 19.7 s |
+| 单摆（强制 `strategy=agent`） | `agent` | 22.3 s |
+
+前端顶部会显示徽标：`模板 · oscillator · 1.3s` 或 `双 Agent · 19.7s`。
 
 ---
 
@@ -120,16 +157,15 @@ def build(params, copy):
 
 ---
 
-## 建议：混合路由（v0.2 的落点）
+## 建议：混合路由（已落地，见上）
 
 ```
 用户输入
    │
-   ├─► 先问模型「这属于哪个模板？」── 命中且置信 ──► B 渲染（4 秒，稳）
+   ├─► 先问模型「这属于哪个模板？」── 命中且置信 ──► B 渲染（约 4 秒，稳）
    │
    └─► 未命中 ──► 回落到 A 的双 Agent（30 秒，任意概念）
 ```
 
-这样 80% 的常见概念走 4 秒快路径，长尾概念仍有兜底，且兜底失败时用户已经习惯了等待。
-
-实现上只需要一个路由函数 + A 的 `/api/generate` 作为 fallback，`generator.py` 的 `plan_from_text` 已经能判断"是否命中"（模板名是否在注册表里）。
+实现位置：`A-自由生成/backend/router.py`（`strategy=auto|template|agent`）。
+分诊 prompt 的判定标准是**从严**的：只有核心物理模型一致才算命中，避免"看起来相关"的误判。

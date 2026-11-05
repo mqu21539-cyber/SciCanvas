@@ -4,15 +4,16 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from agents import fix_lab_code, generate_lab
+import router
+from agents import fix_lab_code
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("scicanvas")
 
-app = FastAPI(title="SciCanvas API", version="1.0.0")
+app = FastAPI(title="SciCanvas API", version="1.1.0")
 
 # 早期版本用的是 allow_origins=["*"] + allow_credentials=True，
 # 浏览器会直接拒绝这种组合；这里改为显式来源白名单。
@@ -28,6 +29,8 @@ app.add_middleware(
 
 class GenerateRequest(BaseModel):
     prompt: str
+    # auto：模板优先、Agent 兜底；template：只走模板；agent：只走双 Agent
+    strategy: str = Field(default="auto", pattern="^(auto|template|agent)$")
 
 
 class FixRequest(BaseModel):
@@ -38,13 +41,23 @@ class FixRequest(BaseModel):
 @app.get("/api/health")
 def api_health():
     """供前端与 dsh 插件做可用性探测（比探测 /docs 更轻）"""
-    return {"status": "ok", "has_key": bool(os.getenv("DEEPSEEK_API_KEY"))}
+    return {
+        "status": "ok",
+        "has_key": bool(os.getenv("DEEPSEEK_API_KEY")),
+        "templates": router.template_names(),
+    }
+
+
+@app.get("/api/templates")
+def api_templates():
+    """列出 B 方案可用模板（前端可据此做快捷入口）。"""
+    return {"templates": router.template_catalog()}
 
 
 @app.post("/api/generate")
 def api_generate(req: GenerateRequest):
     try:
-        return generate_lab(req.prompt)
+        return router.route_and_generate(req.prompt, strategy=req.strategy)
     except Exception as e:  # noqa: BLE001 - 统一转成 500 返回给前端展示
         logger.exception("generate failed")
         raise HTTPException(status_code=500, detail=str(e))
