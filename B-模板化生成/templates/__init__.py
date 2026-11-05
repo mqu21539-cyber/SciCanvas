@@ -43,11 +43,33 @@ def metrics_html(meta):
 
 
 # --- 子模块必须在这里导入：它们会 from . import controls_html ---
-from . import efield, lorenz, orbit, oscillator, projectile, wave  # noqa: E402  isort:skip
+from . import (  # noqa: E402  isort:skip
+    efield,
+    fourier,
+    heat,
+    lorenz,
+    montecarlo,
+    orbit,
+    oscillator,
+    projectile,
+    rc,
+    wave,
+)
 
 MODULES = {
     mod.META["name"]: mod
-    for mod in (oscillator, projectile, wave, efield, orbit, lorenz)
+    for mod in (
+        oscillator,
+        projectile,
+        wave,
+        efield,
+        orbit,
+        lorenz,
+        fourier,
+        rc,
+        heat,
+        montecarlo,
+    )
 }
 
 

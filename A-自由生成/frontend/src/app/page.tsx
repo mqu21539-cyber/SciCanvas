@@ -56,6 +56,49 @@ export default function SciCanvasApp() {
   // 当前请求的控制器：新一轮生成会取消上一轮，避免两个结果互相覆盖
   const abortRef = useRef<AbortController | null>(null);
   const [restored, setRestored] = useState(false);
+  // SSE 阶段：真实进度，不再是按秒数猜
+  const [stage, setStage] = useState<string>("");
+  const [progress, setProgress] = useState(0);
+
+  const applyStage = (payload: { stage: string; template?: string; cached?: boolean }) => {
+    switch (payload.stage) {
+      case "routing":
+        setStage("① 正在分诊：这个概念能用模板表达吗…");
+        setProgress(8);
+        break;
+      case "routed":
+        if (payload.template) {
+          setStage(`✓ 命中模板 ${payload.template}，正在渲染…`);
+          setProgress(55);
+        } else {
+          setStage("→ 没有匹配模板，转双 Agent 生成…");
+          setProgress(15);
+        }
+        break;
+      case "rendering":
+        setStage("② 正在渲染参数化模板…");
+        setProgress(75);
+        break;
+      case "planner":
+        setStage("② Planner 正在拆解物理量与参数区间…");
+        setProgress(30);
+        break;
+      case "coder":
+        setStage("③ Coder 正在编写 Canvas 画布代码…");
+        setProgress(55);
+        break;
+      case "cache_hit":
+        setStage("⚡ 命中缓存，直接复用上次结果…");
+        setProgress(90);
+        break;
+      case "tick":
+        // 后端心跳：让进度条在长任务里继续挪，别停在原地
+        setProgress((p) => Math.min(94, p + 3));
+        break;
+      default:
+        break;
+    }
+  };
 
   const handleGenerate = async (inputPrompt = prompt) => {
     abortRef.current?.abort();
@@ -64,18 +107,62 @@ export default function SciCanvasApp() {
     const timeoutId = setTimeout(() => ctrl.abort(), 120_000); // 后端卡死时别一直转圈
 
     setLoading(true);
+    setStage("① 正在连接后端…");
+    setProgress(4);
     try {
       setError("");
-      const res = await fetch(`${API_BASE}/api/generate`, {
+      const res = await fetch(`${API_BASE}/api/generate/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: inputPrompt }),
         signal: ctrl.signal,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.detail || `HTTP ${res.status}`);
+      if (!res.ok || !res.body) {
+        // 后端可能还是旧版本（没有 /stream），退回普通接口
+        throw new Error(`HTTP ${res.status}`);
       }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let final: Record<string, unknown> | null = null;
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let split;
+        while ((split = buffer.indexOf("\n\n")) >= 0) {
+          const frame = buffer.slice(0, split);
+          buffer = buffer.slice(split + 2);
+          const line = frame.split("\n").find((l) => l.startsWith("data:"));
+          if (!line) continue;
+          let payload: { stage: string; detail?: string; template?: string };
+          try {
+            payload = JSON.parse(line.slice(5).trim());
+          } catch {
+            continue;
+          }
+          if (payload.stage === "error") throw new Error(payload.detail || "生成失败");
+          if (payload.stage === "done") {
+            final = payload as Record<string, unknown>;
+            setProgress(100);
+            continue;
+          }
+          applyStage(payload);
+        }
+      }
+
+      if (!final) throw new Error("连接中断，没有收到结果");
+      const data = final as {
+        plan: LabPlan;
+        html: string;
+        mode: string;
+        template?: string | null;
+        elapsed_ms?: number;
+        cached?: boolean;
+      };
       setPlan(data.plan);
       setHtmlCode(data.html);
       setGuess(null);
@@ -164,6 +251,8 @@ export default function SciCanvasApp() {
             body: JSON.stringify({
               html: htmlCode,
               error: `${event.data.message} at line ${event.data.line}`,
+              // 带上行号，后端就只回传出错附近那一段，省 80%+ 的 token
+              line: Number(event.data.line) || undefined,
             }),
           });
           const data = await res.json();
@@ -372,20 +461,16 @@ export default function SciCanvasApp() {
                 <div className="w-full max-w-md space-y-5">
                   <div className="text-5xl">⚗️</div>
                   <p className="text-sm font-medium text-slate-200">
-                    {elapsed < 6
-                      ? "① 正在拆解物理量与参数区间…"
-                      : elapsed < 32
-                        ? "② 正在编写 Canvas 画布代码…"
-                        : "③ 代码较长，仍在生成中（复杂概念会更久）…"}
+                    {stage || "准备中…"}
                   </p>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 transition-all duration-1000"
-                      style={{ width: `${Math.min(95, Math.round((elapsed / 32) * 100))}%` }}
+                      className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 transition-all duration-500"
+                      style={{ width: `${Math.max(4, Math.min(100, progress))}%` }}
                     />
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-500">
-                    <span>双 Agent 串行生成中，请勿关闭页面</span>
+                    <span>阶段进度来自后端实时推送</span>
                     <span className="font-mono tabular-nums text-cyan-400">已用时 {elapsed}s</span>
                   </div>
                 </div>

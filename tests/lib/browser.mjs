@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Chrome + CDP 的最小组件（不依赖 puppeteer）。
  * 找不到 Chrome 时返回 null，调用方据此 SKIP。
  */
@@ -96,16 +96,20 @@ class CDP {
  * 启动一个 headless Chrome，交给回调使用后自动关闭。
  * @param {(api: {newPage: (url: string) => Promise<CDP>}) => Promise<void>} fn
  */
-export async function withChrome(fn, { port = 9333, width = 1440, height = 1000 } = {}) {
+export async function withChrome(fn, { port = 0, width = 1440, height = 1000 } = {}) {
   const bin = findChrome()
   if (!bin) throw new Error('未找到 Chrome/Edge')
+
+  // 默认端口随机：多个用例连着跑时，上一个 Chrome 可能还没退干净，
+  // 固定端口会撞车，表现为"连上了旧实例"然后一堆莫名其妙的失败。
+  const debugPort = port || 9000 + Math.floor(Math.random() * 800)
 
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scicanvas-chrome-'))
   const chrome = spawn(
     bin,
     [
       '--headless=new',
-      `--remote-debugging-port=${port}`,
+      `--remote-debugging-port=${debugPort}`,
       `--user-data-dir=${userDataDir}`,
       '--no-first-run',
       '--no-default-browser-check',
@@ -116,7 +120,7 @@ export async function withChrome(fn, { port = 9333, width = 1440, height = 1000 
     { stdio: 'ignore' }
   )
 
-  const base = `http://127.0.0.1:${port}`
+  const base = `http://127.0.0.1:${debugPort}`
   for (let i = 0; i < 80; i++) {
     try {
       const r = await fetch(`${base}/json/version`)

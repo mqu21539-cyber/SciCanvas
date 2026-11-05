@@ -1,3 +1,4 @@
+import difflib
 import json
 import os
 import re
@@ -47,9 +48,22 @@ def clean_json_output(raw_text: str) -> dict:
     return json.loads(text)
 
 
-def generate_lab(user_concept: str) -> dict:
-    """Planner -> Coder 双 Agent 流水线"""
+def generate_lab(user_concept: str, on_stage=None) -> dict:
+    """Planner -> Coder 双 Agent 流水线。
+
+    on_stage: 可选回调 on_stage("planner") / on_stage("coder")，
+    供 SSE 流式接口在两次模型调用之间推送进度。
+    """
+
+    def stage(name):
+        if on_stage:
+            try:
+                on_stage(name)
+            except Exception:  # noqa: BLE001 - 进度推送失败不该影响生成
+                pass
+
     # 1. Planner Agent 生成结构化实验蓝图
+    stage("planner")
     plan_res = get_client().chat.completions.create(
         model="deepseek-chat",
         messages=[
@@ -63,6 +77,7 @@ def generate_lab(user_concept: str) -> dict:
     plan_data = clean_json_output(plan_json_str)
 
     # 2. Coder Agent 将蓝图转化为单文件交互式 HTML
+    stage("coder")
     code_res = get_client().chat.completions.create(
         model="deepseek-chat",
         messages=[
@@ -76,8 +91,8 @@ def generate_lab(user_concept: str) -> dict:
     return {"plan": plan_data, "html": html_code}
 
 
-def fix_lab_code(broken_html: str, error_msg: str) -> str:
-    """当沙盒捕获到 JS 运行报错时，自动调用此函数修复"""
+def fix_lab_code(broken_html: str, error_msg: str, usage_out: dict | None = None) -> str:
+    """整份 HTML 回传式修复（兜底方案，最贵但最稳）。"""
     fix_res = get_client().chat.completions.create(
         model="deepseek-chat",
         messages=[
@@ -86,4 +101,86 @@ def fix_lab_code(broken_html: str, error_msg: str) -> str:
         ],
         temperature=0.1,
     )
+    if usage_out is not None and getattr(fix_res, "usage", None):
+        usage_out["prompt_tokens"] = fix_res.usage.prompt_tokens
+        usage_out["completion_tokens"] = fix_res.usage.completion_tokens
     return clean_html_output(fix_res.choices[0].message.content)
+
+
+SNIPPET_SYSTEM_PROMPT = """你是前端调试专家。用户会给你一个单文件 HTML 实验中的一小段代码（带绝对行号）和它运行时的报错。
+
+只输出一个 JSON 补丁，不要任何解释：
+{"start_line": 起始行号, "end_line": 结束行号, "replacement": "替换后的代码"}
+
+规则：
+- 行号必须是用户给你的绝对行号，且落在给出的范围内；
+- 只覆盖真正需要改的那几行，最多 25 行；
+- replacement 保留该范围内的缩进；
+- 如果这段代码看不出问题，输出 {"start_line": 0, "end_line": 0, "replacement": ""}。
+"""
+
+
+def _slice_lines(html: str, line: int, window: int) -> tuple[list[str], int, int]:
+    lines = html.splitlines()
+    total = len(lines)
+    idx = max(0, min(total - 1, line - 1))
+    start = max(0, idx - window)
+    end = min(total, idx + window + 1)
+    return lines, start, end
+
+
+def fix_lab_snippet(
+    html: str, error_msg: str, line: int, window: int = 60, usage_out: dict | None = None
+) -> str:
+    """只把报错行附近的代码发给模型，让它返回一个行号补丁，再拼回整份文件。
+
+    为什么不"让它重写整段"：实测模型会把片段精简后返回，整段替换会静默删代码
+    （拼出过一份不报错但画面全空的 HTML）。改成补丁后只动它明确指定的几行，
+    并且每一条都要过行号范围、行数与括号平衡三道检查，任何一道不过就回落整份修复。
+    """
+    lines, start, end = _slice_lines(html, line, window)
+    numbered = "\n".join(f"{start + i + 1}: {l}" for i, l in enumerate(lines[start:end]))
+
+    resp = get_client().chat.completions.create(
+        model="deepseek-chat",
+        temperature=0.1,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": SNIPPET_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": (
+                    f"整份文件共 {len(lines)} 行，报错在第 {line} 行。\n"
+                    f"下面只给了第 {start + 1}-{end} 行：\n{numbered}\n\n"
+                    f"报错：{error_msg}"
+                ),
+            },
+        ],
+    )
+    if usage_out is not None and getattr(resp, "usage", None):
+        usage_out["prompt_tokens"] = resp.usage.prompt_tokens
+        usage_out["completion_tokens"] = resp.usage.completion_tokens
+        usage_out["window"] = [start + 1, end]
+
+    patch = json.loads(resp.choices[0].message.content or "{}")
+    s = int(patch.get("start_line") or 0)
+    e = int(patch.get("end_line") or 0)
+    replacement = str(patch.get("replacement") or "")
+
+    if not s or not e:
+        raise ValueError("模型判定这段代码没问题（未给出补丁）")
+    if not (start + 1 <= s <= e <= end):
+        raise ValueError(f"补丁行号越界（{s}-{e} 不在 {start + 1}-{end} 内）")
+    new_lines = replacement.splitlines()
+    if not new_lines:
+        raise ValueError("补丁内容为空")
+    if len(new_lines) > 25 or (e - s + 1) > 25:
+        raise ValueError("补丁范围过大，改走整份修复")
+
+    merged_lines = list(lines)
+    merged_lines[s - 1 : e] = new_lines
+    merged = "\n".join(merged_lines)
+
+    if abs(merged.count("{") - merged.count("}")) > 3:
+        raise ValueError("拼接后括号不平衡，改走整份修复")
+    return merged

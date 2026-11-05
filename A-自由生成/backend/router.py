@@ -114,10 +114,23 @@ def pick_template(prompt: str, client) -> dict | None:
     return {**pick, "usage": resp.usage}
 
 
-def _generate(prompt: str, strategy: str = "auto") -> dict:
+def _emit(emit, stage: str, **info):
+    """进度回调。调用方可能不关心，异常也不该中断生成。"""
+    if not emit:
+        return
+    try:
+        emit({"stage": stage, **info})
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _generate(prompt: str, strategy: str = "auto", emit=None) -> dict:
     """strategy: auto（默认，B 优先 A 兜底）/ template（只用模板）/ agent（只用双 Agent）。"""
     started = time.time()
     meta: dict = {"strategy": strategy, "route_reason": "", "router_ms": None, "template": None}
+
+    # 先报"分诊中"：模板库首次导入要几百毫秒，别让用户在这里干等
+    _emit(emit, "routing")
 
     if strategy in ("auto", "template"):
         bgen = template_lib()
@@ -135,6 +148,14 @@ def _generate(prompt: str, strategy: str = "auto") -> dict:
             meta["router_ms"] = int((time.time() - t0) * 1000)
 
             if pick and pick.get("match"):
+                _emit(
+                    emit,
+                    "routed",
+                    match=True,
+                    template=pick["template"],
+                    confidence=pick.get("confidence"),
+                    reason=pick.get("reason", ""),
+                )
                 plan = {
                     "template": pick["template"],
                     "title": pick.get("title") or "",
@@ -143,6 +164,7 @@ def _generate(prompt: str, strategy: str = "auto") -> dict:
                     "challenge": pick.get("challenge") or "",
                     "params": pick.get("params") or {},
                 }
+                _emit(emit, "rendering")
                 html = bgen.render_plan(plan)
                 meta.update(
                     template=pick["template"],
@@ -164,13 +186,14 @@ def _generate(prompt: str, strategy: str = "auto") -> dict:
                 }
             elif pick:
                 meta["route_reason"] = pick.get("reason", "")
+                _emit(emit, "routed", match=False, reason=meta["route_reason"])
 
     if strategy == "template":
         raise RuntimeError(f"没有匹配的模板：{meta['route_reason'] or '未命中'}")
 
     from agents import generate_lab
 
-    out = generate_lab(prompt)
+    out = generate_lab(prompt, on_stage=lambda name: _emit(emit, name))
     return {
         "mode": "agent",
         "plan": out["plan"],
@@ -181,23 +204,25 @@ def _generate(prompt: str, strategy: str = "auto") -> dict:
 
 
 # ---------------------------------------------------------------- 带缓存的入口
-def route_and_generate(prompt: str, strategy: str = "auto") -> dict:
+def route_and_generate(prompt: str, strategy: str = "auto", emit=None) -> dict:
     """先查缓存；未命中再真的生成，并把结果写回缓存。
 
     缓存键 = 策略 + 提示词，所以同一个概念换策略不会被错误复用。
+    emit 用于 SSE 流式接口推送阶段事件。
     """
     started = time.time()
     key = cache.key_for(prompt, strategy)
 
     hit = cache.get(key)
     if hit:
+        _emit(emit, "cache_hit")
         return {
             **hit,
             "elapsed_ms": int((time.time() - started) * 1000),
             "cached": True,
         }
 
-    out = _generate(prompt, strategy)
+    out = _generate(prompt, strategy, emit=emit)
     payload = {k: v for k, v in out.items() if k not in ("cached", "elapsed_ms")}
     cache.put(key, prompt, strategy, payload)
     return {

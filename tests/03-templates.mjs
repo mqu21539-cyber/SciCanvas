@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 03 · 模板渲染 + 真实浏览器验证
  *
  * 步骤：用 B 的 generator 渲染全部模板 → 逐个用 Chrome 打开 →
@@ -27,7 +27,7 @@ if (res.status !== 0) process.exit(skipped(`generator 无法运行（${python}�
 
 const names = [...res.stdout.matchAll(/^\[(\w+)\]/gm)].map((m) => m[1])
 const t = suite('03 · 模板渲染与浏览器验证')
-if (!t.ok('至少 6 个模板', names.length >= 6, names.join(', '))) process.exit(t.done())
+if (!t.ok('至少 10 个模板', names.length >= 10, names.join(', '))) process.exit(t.done())
 
 fs.mkdirSync(OUT, { recursive: true })
 for (const name of names) {

@@ -45,7 +45,11 @@ B-模板化生成/
 │   ├── wave.py             行波叠加与驻波
 │   ├── efield.py           双点电荷电场线
 │   ├── orbit.py            中心力场轨道（开普勒）
-│   └── lorenz.py           洛伦兹吸引子（混沌）
+│   ├── lorenz.py           洛伦兹吸引子（混沌）
+│   ├── fourier.py          傅里叶级数合成方波
+│   ├── rc.py               RC 充放电
+│   ├── heat.py             一维热传导
+│   └── montecarlo.py       蒙特卡洛估 π
 ├── examples/
 │   ├── plan-oscillator.json
 │   └── plan-projectile.json
@@ -62,8 +66,12 @@ B-模板化生成/
 | `efield` | 电磁学 | `E = kq/r²`，场线积分 | q₁、q₂、间距 d |
 | `orbit` | 天体物理 | `a = −μr̂/r²`，速度 Verlet | μ、r₀、速度倍率 |
 | `lorenz` | 混沌 | `ẋ=σ(y−x)` 等，RK4 | σ、ρ、β、初始偏差 ε |
+| `fourier` | 数学/信号 | 奇次谐波部分和 `(4/π)Σ sin(mωt)/m` | 项数 n、ω、初相 φ |
+| `rc` | 电路 | `Vc = V₀(1−e^{−t/τ})`，τ=RC | R、C、V₀ |
+| `heat` | 热学/偏微分 | `∂u/∂t = α∂²u/∂x²`，显式差分（r=0.4） | α、热区宽度、时间加速 |
+| `montecarlo` | 概率/数值 | 撒点比例 × 4 估 π | 撒点速率、点大小 |
 
-六者都在真实 Chrome 里验证过：**无 JS 异常、canvas 实际绘制、滑块注入正常（28/28）**。
+十者都在真实 Chrome 里验证过：**无 JS 异常、canvas 实际绘制、滑块注入正常**。
 
 ---
 
