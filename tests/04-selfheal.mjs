@@ -7,7 +7,7 @@
  * 需要：后端 :8000、前端 :3000、Chrome、有效 DEEPSEEK_API_KEY（会真实调用一次）。
  */
 import { suite, skipped } from './lib/assert.mjs'
-import { findChrome, probeServices, sleep, withChrome } from './lib/browser.mjs'
+import { findChrome, probeServices, sleep, startGeneration, waitHydrated, withChrome } from './lib/browser.mjs'
 
 if (!findChrome()) process.exit(skipped('未找到 Chrome/Edge（可设 CHROME_PATH）'))
 const svc = await probeServices()
@@ -20,30 +20,23 @@ const GEN_TIMEOUT = Number(process.env.SCICANVAS_GEN_TIMEOUT || 150)
 
 await withChrome(async ({ newPage }) => {
   const cdp = await newPage('http://localhost:3000')
-  await sleep(2000)
+  if (!t.ok('页面已水合', await waitHydrated(cdp))) return
 
-  const clicked = await cdp.eval(`(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => x.textContent.includes('多普勒'));
-    if (!b) return 'no-button';
-    b.click(); return 'clicked';
-  })()`)
-  if (!t.ok('点击预设按钮', clicked === 'clicked', clicked)) return
-
-  // 首屏点击可能撞上 React 水合未完成：以「按钮进入 loading 文案」为准，最多点 3 次
-  let started = false
-  for (let attempt = 0; attempt < 3 && !started; attempt++) {
-    if (attempt > 0) {
-      await cdp.eval(`(() => {
-        const b = [...document.querySelectorAll('button')].find((x) => x.textContent.includes('多普勒'));
-        b && b.click();
-      })()`)
-    }
-    await sleep(900)
-    started = await cdp.eval(
-      `[...document.querySelectorAll('button')].some((b) => /正在|生成中/.test(b.textContent))`
-    )
+  // 预设按钮直接绑 handleGenerate；命中缓存时 50ms 就出结果，
+// 所以"是否启动"要同时认「loading 态」和「沙盒已出现」。
+  let started = { loading: false, hasLab: false }
+  for (let attempt = 0; attempt < 5 && !started.loading && !started.hasLab; attempt++) {
+    await cdp.eval(`(() => {
+      const b = [...document.querySelectorAll('button')].find((x) => x.textContent.includes('多普勒'));
+      b && b.click();
+    })()`)
+    await sleep(1200)
+    started = await cdp.eval(`(() => ({
+      loading: [...document.querySelectorAll('button')].some((b) => /正在|生成中|取消/.test(b.textContent)),
+      hasLab: (document.querySelector('iframe')?.getAttribute('srcdoc') || '').length > 500,
+    }))()`)
   }
-  if (!t.ok('生成已启动（loading 态）', started)) return
+  if (!t.ok('生成已启动', started.loading || started.hasLab, JSON.stringify(started))) return
 
   let ready = false
   let waited = 0

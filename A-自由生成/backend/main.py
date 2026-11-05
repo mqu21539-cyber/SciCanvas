@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 import router
+import cache
 from agents import fix_lab_code
 
 load_dotenv()
@@ -45,6 +46,7 @@ def api_health():
         "status": "ok",
         "has_key": bool(os.getenv("DEEPSEEK_API_KEY")),
         "templates": router.template_names(),
+        "cache": cache.stats(),
     }
 
 
@@ -52,6 +54,18 @@ def api_health():
 def api_templates():
     """列出 B 方案可用模板（前端可据此做快捷入口）。"""
     return {"templates": router.template_catalog()}
+
+
+@app.get("/api/cache")
+def api_cache_stats():
+    """缓存条数与占用，便于观察命中收益。"""
+    return cache.stats()
+
+
+@app.delete("/api/cache")
+def api_cache_clear():
+    """清空缓存（改过 prompt 或模板后建议清一次）。"""
+    return {"removed": cache.clear()}
 
 
 @app.post("/api/generate")

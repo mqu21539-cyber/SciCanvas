@@ -21,6 +21,13 @@ except Exception as e:  # noqa: BLE001
     print(f"  SKIP  后端未运行：{e}")
     sys.exit(2)
 
+# 先清缓存：否则这里测的只是"缓存能不能命中"，测不到真实路由。
+try:
+    removed = httpx.delete(f"{API}/api/cache", timeout=5).json().get("removed")
+    print(f"  已清空缓存 {removed} 条")
+except Exception:  # noqa: BLE001
+    pass
+
 temps = health.get("templates") or []
 print(f"\n02 · 混合路由")
 print("─" * 40)
@@ -54,4 +61,20 @@ for name, prompt, strategy, expect, budget in CASES:
         fail += 1
 
 print(f"\n  小计：通过 {len(CASES) - fail} / 失败 {fail}")
+
+# ---- 缓存：同一提示词第二次应命中，且几乎不耗时 ----
+name, prompt = CASES[0][0], CASES[0][1]
+t0 = time.time()
+r = httpx.post(f"{API}/api/generate", json={"prompt": prompt, "strategy": "auto"}, timeout=120)
+dt = time.time() - t0
+d = r.json()
+cached_ok = r.status_code == 200 and d.get("cached") is True
+fast_ok = dt < 5
+if cached_ok and fast_ok:
+    print(f"  PASS  缓存命中：{name} 第二次 {dt:.2f}s（cached={d.get('cached')}）")
+else:
+    print(f"  FAIL  缓存未生效：{dt:.2f}s cached={d.get('cached')}")
+    fail += 1
+
+print(f"\n  总计：通过 {len(CASES) + 1 - fail} / 失败 {fail}")
 sys.exit(1 if fail else 0)

@@ -19,6 +19,7 @@ out/
 # --- generated labs & plugin build ---
 scicanvas-labs/
 A-自由生成/dsh-plugin-scicanvas/lib/
+A-自由生成/backend/.cache/
 B-模板化生成/out/
 
 # --- 本地探针现场（从 app.asar 抽出的 dsh 源码，仅供分析，不入库）---

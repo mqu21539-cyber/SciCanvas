@@ -19,12 +19,12 @@ node tests/run-all.mjs --list
 | :-- | :--- | :--- | :--- |
 | 00 | 后端冒烟：路由、参数校验、桩客户端跑通双 Agent | Python + venv | 1 s |
 | 01 | 插件契约：dsh 的 `defineTool` 编译 + 契约断言 | `@deepseek-ai/dsh-tools` | 1 s |
-| 02 | 混合路由：模板命中快、未命中回落、strategy 生效 | 后端 + **真实 API Key** | 60 s |
+| 02 | 混合路由：模板命中快、未命中回落、strategy 生效、缓存命中 | 后端 + **真实 API Key** | 60 s |
 | 03 | 模板渲染 + 浏览器验证（无异常 / canvas 有像素 / 滑块） | Chrome + Python | 25 s |
 | 04 | 自愈链路端到端（真实生成 → 注入错误 → 重渲染） | 后端 + 前端 + Chrome + Key | 60 s |
 | 05 | 前端路由徽标（输入单摆 → 模板快路径） | 后端 + 前端 + Chrome + Key | 10 s |
 | 06 | 展厅清单一致性（登记的文件都在、id 不重复、降级清单无过期项） | 无 | 0.1 s |
-| 07 | 交互功能：先猜后试挑战卡、双沙盒同屏对比 | 后端 + 前端 + Chrome + Key | 15 s |
+| 07 | 交互功能：先猜后试、双沙盒对比、刷新恢复、取消生成 | 后端 + 前端 + Chrome + Key | 15 s |
 
 **附带工具**：`node tests/check-html.mjs <某个.html>` —— 单独验证一个生成产物在真实浏览器里
 是否无报错、画布是否真的画了东西（抽查插件产物时很方便）。
@@ -86,13 +86,16 @@ cd A-自由生成/frontend && pnpm dev
 浏览器类用例直接复用 `lib/browser.mjs`：
 
 ```js
-import { withChrome, sleep } from './lib/browser.mjs'
+import { withChrome, waitHydrated, startGeneration } from './lib/browser.mjs'
 await withChrome(async ({ newPage }) => {
   const cdp = await newPage('http://localhost:3000')
-  await sleep(1000)
-  const title = await cdp.eval('document.title')
+  await waitHydrated(cdp)        // 别在水合完成前点击，否则是空点
+  const state = await startGeneration(cdp)   // 会重试直到真的启动
 })
 ```
+
+> **水合竞态是个坑**：dev 模式首次访问要先编译，DOM 先到、事件监听后到。
+> 早期用例直接 `click()` 后立刻断言，会偶发假失败。上面两个 helper 就是为此加的。
 
 ---
 

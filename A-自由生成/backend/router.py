@@ -15,6 +15,8 @@ import sys
 import time
 from pathlib import Path
 
+import cache
+
 # backend/ -> A-自由生成/ -> 仓库根 -> B-模板化生成
 _DEFAULT_TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "B-模板化生成"
 TEMPLATE_DIR = Path(os.getenv("SCICANVAS_TEMPLATE_DIR", _DEFAULT_TEMPLATE_DIR))
@@ -112,7 +114,7 @@ def pick_template(prompt: str, client) -> dict | None:
     return {**pick, "usage": resp.usage}
 
 
-def route_and_generate(prompt: str, strategy: str = "auto") -> dict:
+def _generate(prompt: str, strategy: str = "auto") -> dict:
     """strategy: auto（默认，B 优先 A 兜底）/ template（只用模板）/ agent（只用双 Agent）。"""
     started = time.time()
     meta: dict = {"strategy": strategy, "route_reason": "", "router_ms": None, "template": None}
@@ -175,4 +177,31 @@ def route_and_generate(prompt: str, strategy: str = "auto") -> dict:
         "html": out["html"],
         "elapsed_ms": int((time.time() - started) * 1000),
         **meta,
+    }
+
+
+# ---------------------------------------------------------------- 带缓存的入口
+def route_and_generate(prompt: str, strategy: str = "auto") -> dict:
+    """先查缓存；未命中再真的生成，并把结果写回缓存。
+
+    缓存键 = 策略 + 提示词，所以同一个概念换策略不会被错误复用。
+    """
+    started = time.time()
+    key = cache.key_for(prompt, strategy)
+
+    hit = cache.get(key)
+    if hit:
+        return {
+            **hit,
+            "elapsed_ms": int((time.time() - started) * 1000),
+            "cached": True,
+        }
+
+    out = _generate(prompt, strategy)
+    payload = {k: v for k, v in out.items() if k not in ("cached", "elapsed_ms")}
+    cache.put(key, prompt, strategy, payload)
+    return {
+        **out,
+        "elapsed_ms": int((time.time() - started) * 1000),
+        "cached": False,
     }

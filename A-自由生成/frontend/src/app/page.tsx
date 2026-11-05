@@ -45,7 +45,7 @@ export default function SciCanvasApp() {
   const [elapsed, setElapsed] = useState(0);
   // 后端路由结果：走模板（快）还是双 Agent（慢），用于顶部徽标
   const [engine, setEngine] = useState<
-    { mode: "template" | "agent"; template?: string | null; ms: number } | null
+    { mode: "template" | "agent"; template?: string | null; ms: number; cached?: boolean } | null
   >(null);
   const [viewMode, setViewMode] = useState<"preview" | "code">("preview");
   // 「先猜后试」：用户先选一个预测，再去拖滑块验证
@@ -53,7 +53,16 @@ export default function SciCanvasApp() {
   // 「双沙盒同屏对比」：两块独立 iframe 跑同一份代码，各自拖滑块
   const [split, setSplit] = useState(false);
   const [splitNonce, setSplitNonce] = useState(0);
+  // 当前请求的控制器：新一轮生成会取消上一轮，避免两个结果互相覆盖
+  const abortRef = useRef<AbortController | null>(null);
+  const [restored, setRestored] = useState(false);
+
   const handleGenerate = async (inputPrompt = prompt) => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const timeoutId = setTimeout(() => ctrl.abort(), 120_000); // 后端卡死时别一直转圈
+
     setLoading(true);
     try {
       setError("");
@@ -61,6 +70,7 @@ export default function SciCanvasApp() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: inputPrompt }),
+        signal: ctrl.signal,
       });
       const data = await res.json();
       if (!res.ok) {
@@ -70,18 +80,60 @@ export default function SciCanvasApp() {
       setHtmlCode(data.html);
       setGuess(null);
       setSplitNonce((n) => n + 1);
+      setRestored(false);
       setEngine({
         mode: data.mode === "template" ? "template" : "agent",
         template: data.template ?? null,
         ms: data.elapsed_ms ?? 0,
+        cached: Boolean(data.cached),
       });
       setViewMode("preview");
+      // 刷新页面不该丢掉刚生成的实验
+      try {
+        localStorage.setItem(
+          "scicanvas:last",
+          JSON.stringify({ prompt: inputPrompt, plan: data.plan, html: data.html, engine: data })
+        );
+      } catch {
+        /* 隐私模式或超额，忽略 */
+      }
     } catch (err) {
-      setError(`生成失败：${(err as Error).message}。请确认后端已在 ${API_BASE} 启动。`);
+      const e = err as Error;
+      if (e.name === "AbortError") {
+        setError("已取消（或等待超过 120 秒）。可以重试，或换个更具体的描述。");
+      } else {
+        setError(`生成失败：${e.message}。请确认后端已在 ${API_BASE} 启动。`);
+      }
     } finally {
-      setLoading(false);
+      clearTimeout(timeoutId);
+      // 只有"当前这一轮"结束时才收掉 loading，否则会误关后发起的请求
+      if (abortRef.current === ctrl) setLoading(false);
     }
   };
+
+  // 恢复上次会话的实验（只跑一次）
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("scicanvas:last");
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved?.html) return;
+      setHtmlCode(saved.html);
+      setPlan(saved.plan ?? null);
+      setPrompt(saved.prompt ?? "");
+      if (saved.engine) {
+        setEngine({
+          mode: saved.engine.mode === "template" ? "template" : "agent",
+          template: saved.engine.template ?? null,
+          ms: saved.engine.elapsed_ms ?? 0,
+          cached: Boolean(saved.engine.cached),
+        });
+      }
+      setRestored(true);
+    } catch {
+      /* 坏数据直接忽略 */
+    }
+  }, []);
   // 等待期间计时：实测 25–30s，必须让用户看到「还在动」，否则会被当成卡死
   useEffect(() => {
     if (!loading) {
@@ -158,6 +210,7 @@ export default function SciCanvasApp() {
               {engine.mode === "template"
                 ? `模板 · ${engine.template} · ${(engine.ms / 1000).toFixed(1)}s`
                 : `双 Agent · ${(engine.ms / 1000).toFixed(1)}s`}
+              {engine.cached && <span className="ml-1.5 opacity-80">· 缓存命中</span>}
             </span>
           )}
         </div>
@@ -236,14 +289,36 @@ export default function SciCanvasApp() {
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => handleGenerate()}
-              disabled={loading}
-              className="mt-2 w-full py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 font-semibold text-sm shadow-lg disabled:opacity-50 transition"
-            >
-              {loading ? "⏳ 双 Agent 正在推导公式与编写交互画布..." : "✨ 立即生成 2D 互动实验室"}
-            </button>
+            {loading ? (
+              <button
+                onClick={() => abortRef.current?.abort()}
+                className="mt-2 w-full py-2.5 rounded-lg bg-rose-600/80 hover:bg-rose-600 font-semibold text-sm shadow-lg transition"
+              >
+                ✕ 取消生成（已等待 {elapsed}s）
+              </button>
+            ) : (
+              <button
+                onClick={() => handleGenerate()}
+                className="mt-2 w-full py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 font-semibold text-sm shadow-lg transition"
+              >
+                ✨ 立即生成 2D 互动实验室
+              </button>
+            )}
           </div>
+          {restored && (
+            <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>已恢复上次实验（存在本机浏览器里）</span>
+              <button
+                onClick={() => {
+                  localStorage.removeItem("scicanvas:last");
+                  setRestored(false);
+                }}
+                className="text-slate-500 hover:text-slate-300 underline"
+              >
+                清空
+              </button>
+            </div>
+          )}
           {/* 科学蓝图与反直觉挑战卡片 */}
           {plan && (
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">

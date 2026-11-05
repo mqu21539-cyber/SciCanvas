@@ -5,7 +5,7 @@
  *   顶部徽标显示「模板 · oscillator」且 10 秒内出结果、沙盒已渲染。
  */
 import { suite, skipped } from './lib/assert.mjs'
-import { findChrome, probeServices, sleep, withChrome } from './lib/browser.mjs'
+import { findChrome, probeServices, sleep, startGeneration, waitHydrated, withChrome } from './lib/browser.mjs'
 
 if (!findChrome()) process.exit(skipped('未找到 Chrome/Edge（可设 CHROME_PATH）'))
 const svc = await probeServices()
@@ -18,7 +18,7 @@ const CONCEPT = '演示单摆的阻尼振动：可调摆长、阻尼系数和重
 
 await withChrome(async ({ newPage }) => {
   const cdp = await newPage('http://localhost:3000')
-  await sleep(2000)
+  if (!t.ok('页面已水合', await waitHydrated(cdp))) return
 
   // React 受控 textarea 必须走原生 setter + input 事件
   const typed = await cdp.eval(`(() => {
@@ -31,28 +31,8 @@ await withChrome(async ({ newPage }) => {
   })()`)
   if (!t.ok('填入自定义概念', typed !== 'no-textarea', String(typed))) return
 
-  const clicked = await cdp.eval(`(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => x.textContent.includes('立即生成'));
-    if (!b) return 'no-button';
-    b.click(); return 'clicked';
-  })()`)
-  if (!t.ok('点击生成', clicked === 'clicked', clicked)) return
-
-  // 水合竞态兜底：没进入 loading 态就再点一次
-  let started = false
-  for (let attempt = 0; attempt < 3 && !started; attempt++) {
-    if (attempt > 0) {
-      await cdp.eval(`(() => {
-        const b = [...document.querySelectorAll('button')].find((x) => x.textContent.includes('立即生成'));
-        b && b.click();
-      })()`)
-    }
-    await sleep(900)
-    started = await cdp.eval(
-      `[...document.querySelectorAll('button')].some((b) => /正在|生成中/.test(b.textContent))`
-    )
-  }
-  if (!t.ok('生成已启动', started)) return
+  const started = await startGeneration(cdp)
+  if (!t.ok('生成已启动', started.loading || started.hasLab || started.err, JSON.stringify(started))) return
 
   const t0 = Date.now()
   let badge = ''

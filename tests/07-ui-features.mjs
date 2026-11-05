@@ -6,7 +6,7 @@
  *   「双沙盒同屏对比」——切到对比模式后是两个独立 iframe，可同步重置
  */
 import { suite, skipped } from './lib/assert.mjs'
-import { findChrome, probeServices, sleep, withChrome } from './lib/browser.mjs'
+import { findChrome, probeServices, sleep, startGeneration, waitHydrated, withChrome } from './lib/browser.mjs'
 
 if (!findChrome()) process.exit(skipped('未找到 Chrome/Edge（可设 CHROME_PATH）'))
 const svc = await probeServices()
@@ -19,7 +19,7 @@ const CONCEPT = '演示单摆的阻尼振动：可调摆长、阻尼系数和重
 
 await withChrome(async ({ newPage }) => {
   const cdp = await newPage('http://localhost:3000')
-  await sleep(2000)
+  if (!t.ok('页面已水合', await waitHydrated(cdp))) return
 
   // 用模板概念生成，2 秒左右出结果
   await cdp.eval(`(() => {
@@ -29,13 +29,8 @@ await withChrome(async ({ newPage }) => {
     ta.dispatchEvent(new Event('input', { bubbles: true }));
   })()`)
 
-  let started = false
-  for (let attempt = 0; attempt < 3 && !started; attempt++) {
-    await cdp.eval(`[...document.querySelectorAll('button')].find((b) => b.textContent.includes('立即生成'))?.click()`)
-    await sleep(900)
-    started = await cdp.eval(`[...document.querySelectorAll('button')].some((b) => /正在|生成中/.test(b.textContent))`)
-  }
-  if (!t.ok('生成已启动', started)) return
+  const started = await startGeneration(cdp)
+  if (!t.ok('生成已启动', started.loading || started.hasLab || started.err, JSON.stringify(started))) return
 
   let ready = false
   for (let i = 0; i < 40; i++) {
@@ -83,6 +78,49 @@ await withChrome(async ({ newPage }) => {
   await sleep(800)
   const afterReset = await cdp.eval(`document.querySelectorAll('iframe').length`)
   t.ok('同步重置后仍是两块', reset === 'clicked' && afterReset === 2, `reset=${reset} n=${afterReset}`)
+
+  // ---- 刷新后不丢（localStorage 恢复）----
+  await cdp.send('Page.reload')
+  await sleep(2500)
+  const restored = await cdp.eval(`(() => {
+    const src = document.querySelector('iframe')?.getAttribute('srcdoc') || '';
+    return { len: src.length, banner: document.body.innerText.includes('已恢复上次实验') };
+  })()`)
+  t.ok('刷新后自动恢复上次实验', restored.len > 500, `${restored.len} 字符`)
+  t.ok('显示「已恢复」提示', restored.banner)
+
+  // ---- 取消生成 ----
+  // 提示词必须每次唯一：否则命中缓存后 50ms 就返回，"生成中"根本抓不到
+  const slowPrompt = `演示量子隧穿的概率波穿透势垒（无模板走慢路径 · 用例 ${Date.now()}）`
+  await cdp.eval(`(() => {
+    const ta = document.querySelector('textarea');
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+    setter.call(ta, ${JSON.stringify(slowPrompt)});
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`)
+
+  // 刷新之后要重新等水合，否则这一下点击是空点
+  await waitHydrated(cdp)
+  const starting = await startGeneration(cdp, { requireLoading: true })
+  if (!t.ok('慢路径生成已启动', starting.loading, JSON.stringify(starting))) return
+
+  const cancelBtn = await cdp.eval(`(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => x.textContent.includes('取消生成'));
+    if (!b) return 'no-button'; b.click(); return 'clicked';
+  })()`)
+  t.ok('生成中出现取消按钮', cancelBtn === 'clicked', cancelBtn)
+
+  let cancelled = false
+  for (let i = 0; i < 20; i++) {
+    await sleep(250)
+    cancelled = await cdp.eval(`document.body.innerText.includes('已取消')`)
+    if (cancelled) break
+  }
+  t.ok('取消后给出明确提示', cancelled)
+  const backToIdle = await cdp.eval(
+    `[...document.querySelectorAll('button')].some((b) => b.textContent.includes('立即生成'))`
+  )
+  t.ok('取消后按钮恢复可用', backToIdle)
 
   t.ok('全程无页面异常', cdp.errors().length === 0, cdp.errors().slice(0, 1).join(' | '))
 })

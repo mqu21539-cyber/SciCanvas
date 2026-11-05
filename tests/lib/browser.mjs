@@ -163,3 +163,43 @@ export async function probeServices() {
   }
   return out
 }
+
+/**
+ * 等 React 水合完成。
+ * dev 模式首次访问要现场编译，DOM 先到、事件监听后到，此时点击是空点。
+ * 受控 textarea 上会有 React 挂的 _valueTracker，可作为水合完成的信号。
+ */
+export async function waitHydrated(cdp, timeoutMs = 25000) {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const ready = await cdp.eval(
+      `!!(document.querySelector('textarea') && document.querySelector('textarea')._valueTracker)`
+    )
+    if (ready) return true
+    await sleep(250)
+  }
+  return false
+}
+
+/**
+ * 点击「立即生成」，并确认这一下真的生效了。
+ * 判据：按钮进入取消态 / 出现沙盒 / 出现错误横幅——三者任一即算启动。
+ * 都不满足就再点一次（最多 attempts 次），避免把水合慢当成产品 bug。
+ */
+export async function startGeneration(cdp, { attempts = 6, gapMs = 1200, requireLoading = false } = {}) {
+  let last = { loading: false, hasLab: false, err: false }
+  for (let i = 0; i < attempts; i++) {
+    await cdp.eval(
+      `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('立即生成'))?.click()`
+    )
+    await sleep(gapMs)
+    last = await cdp.eval(`(() => ({
+      loading: [...document.querySelectorAll('button')].some((b) => /取消/.test(b.textContent)),
+      hasLab: (document.querySelector('iframe')?.getAttribute('srcdoc') || '').length > 500,
+      err: document.body.innerText.includes('生成失败'),
+    }))()`)
+    // requireLoading：页面上原本就有沙盒时，"出现了沙盒"不能当作启动成功的证据
+    if (last.loading || (!requireLoading && (last.hasLab || last.err))) return last
+  }
+  return last
+}
