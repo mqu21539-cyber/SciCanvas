@@ -281,8 +281,23 @@ window.onerror = function(msg, url, line, col, error) {
   var SPEC = __SPEC__;
 
   // ---------------- 运行时状态 ----------------
-  var P = {};
-  SPEC.controls.forEach(function(c){ P[c.id] = c.default; });
+  var vals = {};
+  SPEC.controls.forEach(function(c){ vals[c.id] = c.default; });
+
+  // P 既是对象也是函数：模型经常写 HOLO.P('k')，模板里写 HOLO.P.k，
+  // 两种都得能用，否则一调就 TypeError，整页直接空白（踩过）。
+  var P = new Proxy(function(key){ return vals[key]; }, {
+    get: function(t, k){
+      if (k === 'toJSON') return function(){ return vals; };
+      return vals[k];
+    },
+    set: function(t, k, v){ vals[k] = v; return true; },
+    has: function(t, k){ return k in vals; },
+    ownKeys: function(){ return Object.keys(vals); },
+    getOwnPropertyDescriptor: function(t, k){
+      return { value: vals[k], enumerable: true, configurable: true, writable: true };
+    }
+  });
 
   var svg = {
     l0: document.getElementById('l0'),
@@ -329,7 +344,7 @@ window.onerror = function(msg, url, line, col, error) {
   // ---------------- 对外 API ----------------
   var api = {
     P: P,
-    p: function(k){ return P[k]; },
+    p: function(k){ return vals[k]; },
     L0: function(h){ layer('l0', h); },
     L1: function(h){ layer('l1', h); },
     L2: function(h){ layer('l2', h); },
@@ -526,11 +541,11 @@ window.onerror = function(msg, url, line, col, error) {
   });
 
   // ---------------- 主循环 ----------------
-  var T = 0, prev = performance.now(), started = false;
+  var T = 0, prev = performance.now(), started = false, errCount = 0;
   function loop(now) {
     // 底座脚本先于模板脚本执行，所以首帧之前模板的 reset() 还不存在——
     // 推迟到第一次循环再初始化，否则 L0 基准层会是空的。
-    if (!started) { started = true; api.reset(); }
+    if (!started) { started = true; safeReset(); }
     var raw = Math.min(0.05, (now - prev) / 1000);
     prev = now;
     var dt = raw * TIME_SCALE;
@@ -538,18 +553,48 @@ window.onerror = function(msg, url, line, col, error) {
     T += dt;
     try {
       if (typeof window.frame === 'function') window.frame(dt, T);
+      errCount = 0;                       // 跑通就清零，偶发错误不会累计
     } catch (e) {
-      window.onerror(String(e && e.message || e), '', 0, 0, e);
-      TIME_SCALE = 0;
-      document.querySelectorAll('.dock button[data-speed]').forEach(function(b){ b.classList.remove('on'); });
-      return;
+      // 关键：不要因为一次异常就把整个循环停掉。
+      // 停了之后自愈接手也只是换一份 HTML，画面在换之前永远是死的（踩过）。
+      errCount++;
+      if (errCount <= 3) {
+        try { window.onerror(String(e && e.message || e), '', 0, 0, e); } catch (e2) {}
+        showFault(String(e && e.message || e));
+      }
     }
     requestAnimationFrame(loop);
   }
 
-  api.reset = function(){
-    if (typeof window.reset === 'function') { try { window.reset(); } catch (e) { console.error(e); } }
-  };
+  // 出错时在舞台中央留一行提示，总比"看起来什么都没发生"强
+  var faultEl = null;
+  function showFault(msg) {
+    if (!faultEl) {
+      faultEl = document.createElement('div');
+      faultEl.style.cssText =
+        'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;' +
+        'max-width:70%;padding:10px 14px;border:1px solid rgba(244,63,94,.5);' +
+        'background:rgba(2,6,23,.9);color:#fda4af;font:12px/1.6 ui-monospace,monospace;' +
+        'white-space:pre-wrap;word-break:break-all;';
+      document.querySelector('.stage-area').appendChild(faultEl);
+    }
+    faultEl.textContent = '⚠ 实验代码抛错（自愈已触发）\n' + msg;
+  }
+  function clearFault() {
+    if (faultEl) { faultEl.remove(); faultEl = null; }
+  }
+
+  function safeReset() {
+    clearFault();
+    if (typeof window.reset === 'function') {
+      try { window.reset(); } catch (e) {
+        showFault(String(e && e.message || e));
+        try { window.onerror(String(e && e.message || e), '', 0, 0, e); } catch (e2) {}
+      }
+    }
+  }
+
+  api.reset = safeReset;
 
   // 先跑一次 reset 让模板把初始画面画出来（真正的首次调用在 loop 里）
   drawScope();

@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import json
 import logging
 import os
@@ -164,7 +164,7 @@ def api_fix(req: FixRequest):
                 logger.info("snippet 修复未成功，回落整份：%s", e)
 
         fixed_html = fix_lab_code(req.html, req.error, usage)
-        return {"html": fixed_html, "mode": "full", "usage": usage}
+        return {"html": fixed_html, "mode": usage.get("mode", "full"), "usage": usage}
     except Exception as e:  # noqa: BLE001
         logger.exception("fix failed")
         raise HTTPException(status_code=500, detail=str(e))

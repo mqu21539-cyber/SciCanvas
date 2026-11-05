@@ -12,6 +12,7 @@ from prompts import (
     CODER_SYSTEM_PROMPT,
     FIXER_SYSTEM_PROMPT,
     HOLO_CODER_PROMPT,
+    HOLO_FIXER_PROMPT,
     HOLO_PLANNER_PROMPT,
     PLANNER_SYSTEM_PROMPT,
 )
@@ -122,8 +123,70 @@ def generate_lab(user_concept: str, on_stage=None) -> dict:
     return {"plan": plan_data, "html": html_code}
 
 
+_HOLO_MARK = "HOLO.L1"
+_SCRIPTS = re.compile(r"<script\b[^>]*>(.*?)</script>", re.DOTALL | re.IGNORECASE)
+
+
+def _fix_holo_snippet(broken_html: str, error_msg: str, usage_out: dict | None) -> str:
+    """全息产物只修最后一段 JS，不重写整份 HTML。
+
+    注意：千万别用「从第一个 <script> 到 </script></body>」这种正则——
+    它会把底座脚本和模板脚本一起吞掉，结果是把整个四层舞台替换成几十行 JS
+    （实测产物从 30KB 掉到 5.6KB，页面直接废掉）。只认最后一个脚本块。
+    """
+    blocks = list(_SCRIPTS.finditer(broken_html))
+    if not blocks:
+        raise ValueError("找不到脚本块")
+    target = blocks[-1]                     # 最后一个 <script> 就是模型写的那段
+    if "HOLO" not in target.group(1):
+        raise ValueError("最后一个脚本块不像实验逻辑")
+
+    resp = get_client().chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {"role": "system", "content": HOLO_FIXER_PROMPT},
+            {"role": "user", "content": f"报错：{error_msg}\n\n当前 JS：\n{target.group(1)}"},
+        ],
+        temperature=0.1,
+    )
+    if usage_out is not None and getattr(resp, "usage", None):
+        usage_out["prompt_tokens"] = resp.usage.prompt_tokens
+        usage_out["completion_tokens"] = resp.usage.completion_tokens
+
+    if usage_out is not None:
+        usage_out["mode"] = "holo-snippet"
+    fixed_js = holo_build.clean_js(resp.choices[0].message.content or "")
+    if not fixed_js or fixed_js == target.group(1).strip():
+        raise ValueError("模型没有给出改动")
+    if abs(fixed_js.count("{") - fixed_js.count("}")) > 2:
+        raise ValueError("修复后的括号不平衡")
+    if not re.search(r"window\.(frame|reset)\s*=", fixed_js):
+        raise ValueError("修复后缺少 window.frame/reset")
+
+    merged = broken_html[: target.start(1)] + "\n" + fixed_js + "\n" + broken_html[target.end(1) :]
+    # 底座必须还在，否则说明拼错了
+    if "id=\"l1\"" not in merged or merged.count("<script") != broken_html.count("<script"):
+        raise ValueError("拼接后底座丢失，改走整份修复")
+    return merged
+
+
 def fix_lab_code(broken_html: str, error_msg: str, usage_out: dict | None = None) -> str:
-    """整份 HTML 回传式修复（兜底方案，最贵但最稳）。"""
+    """修复损坏的实验。
+
+    全息产物（v0.11 起）只重写里面那段 JS；老产物整份回传修复。
+    片段修复失败时自动回落整份，别把用户卡在报错页。
+    """
+    if _HOLO_MARK in broken_html:
+        try:
+            return _fix_holo_snippet(broken_html, error_msg, usage_out)
+        except Exception as e:  # noqa: BLE001
+            # 全息产物修不动时，宁可原样返回，也不要整份重写——
+            # 整份重写会把四层底座换成模型自己画的 canvas 版，越修越糟。
+            logger.info("全息片段修复未成功，原样返回：%s", e)
+            if usage_out is not None:
+                usage_out["mode"] = "holo-unchanged"
+            return broken_html
+
     fix_res = get_client().chat.completions.create(
         model="deepseek-chat",
         messages=[

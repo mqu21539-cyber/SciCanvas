@@ -82,6 +82,18 @@ HOLO_PLANNER_PROMPT = """
 - 所有画布坐标基于 700×400 的 SVG 视口。
 """
 
+HOLO_FIXER_PROMPT = """
+你是一位前端调试专家。下面的 JS 片段运行在全息底座里，抛出了错误。
+底座已经提供好四层 SVG、示波器与循环，你只需要修这段 JS。
+
+规则：
+- 只输出修复后的 JS 代码本身，不要 Markdown 围栏，不要解释，不要 <html>/<style>。
+- 必须保留 window.reset 与 window.frame 两个函数。
+- 参数请用 HOLO.p('key') 或 HOLO.P.key 读取（HOLO.P 既可以直接当函数调用，也可以取属性）。
+- 不要写 requestAnimationFrame，不要用 canvas。
+- 只改出错的地方，其余逻辑原样保留。
+"""
+
 HOLO_CODER_PROMPT = """
 你是一位精通 SVG 矢量动画的科学可视化工程师。运行时会提供一个「全息 2.5D 底座」，
 你只需要写一个约 50 行的 JS 片段，底座会负责四层舞台、示波器、时间控制、滤镜与残影。

@@ -71,6 +71,18 @@ await withChrome(async ({ newPage }) => {
   // 触发真实页面的自愈监听
   const before = info.len
   const t0 = Date.now()
+
+  // 实验有可能自己就先报错并触发过修复；那样我们注入的这条会被"正在修复"挡掉。
+  // 先等页面安静下来（不在修复中），再注入，判据才稳定。
+  for (let i = 0; i < 80; i++) {
+    const fixing = await cdp.eval(`document.body.innerText.includes('自动热修复')`)
+    if (!fixing && i > 2) break
+    await sleep(500)
+  }
+  const baseFixCalls = cdp.events.filter(
+    (e) => e.method === 'Network.requestWillBeSent' && String(e.params.request.url).includes('/api/fix')
+  ).length
+
   await cdp.eval(`window.postMessage({ type: 'SCICANVAS_ERROR', message: 'ReferenceError: __e2e_undefined is not defined', line: 42 }, '*')`)
 
   // 断言 1：页面真的向 /api/fix 发了请求（这是"链路通"的直接证据）
@@ -80,9 +92,9 @@ await withChrome(async ({ newPage }) => {
     fixCalls = cdp.events.filter(
       (e) => e.method === 'Network.requestWillBeSent' && String(e.params.request.url).includes('/api/fix')
     ).length
-    if (fixCalls > 0) break
+    if (fixCalls > baseFixCalls) break
   }
-  t.ok('页面发出了 POST /api/fix', fixCalls > 0, `${fixCalls} 次请求 · ${Math.round((Date.now() - t0) / 1000)}s`)
+  t.ok('页面发出了 POST /api/fix', fixCalls > 0, `${fixCalls} 次请求（注入前 ${baseFixCalls}）· ${Math.round((Date.now() - t0) / 1000)}s`)
 
   // 断言 2：自愈徽标出现（UI 进入了修复态）
   let badge = false
@@ -108,6 +120,14 @@ await withChrome(async ({ newPage }) => {
   }
   const changed = after !== before
   t.ok('修复结束后沙盒仍可渲染', settled, `before=${before} after=${after} 变化=${changed ? '是' : '否'} ${Math.round((Date.now() - t0) / 1000)}s`)
+
+  // 修复不该把底座换掉：产物应仍是全息四层，而不是被改写成别的结构
+  // （这条能抓住"正则吞掉底座脚本"那类拼接事故，实测一次就把 30KB 打成 5.6KB）
+  const shape = await cdp.eval(`(() => {
+    const src = document.querySelector('iframe')?.getAttribute('srcdoc') || '';
+    return { holo: src.includes('id="l1"') && src.includes('HOLO.L1'), len: src.length };
+  })()`)
+  if (info.holo) t.ok('修复后仍保持全息底座', shape.holo, `${shape.len} 字符`)
   t.ok('自愈后无新增页面异常', cdp.errors().length === 0, cdp.errors().slice(0, 1).join(' | '))
 })
 
