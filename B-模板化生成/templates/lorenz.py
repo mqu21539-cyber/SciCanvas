@@ -66,6 +66,19 @@ _JS = r"""
     S.b = { x: 1 + S.eps, y: 1, z: 1 };
     S.t = 0; S.ta = []; S.tb = []; S.run = true;
     btnPause.textContent = '暂停';
+    // 预热：先静默积分，让第一帧就是填满两个叶片的完整吸引子，
+    // 否则用户要看十几秒才见到"蝴蝶"。
+    warmup(4200);
+  }
+
+  function warmup(steps){
+    for (let i = 0; i < steps; i++){
+      S.a = rk4(S.a, DT);
+      S.b = rk4(S.b, DT);
+      S.t += DT;
+      S.ta.push({ x: S.a.x, z: S.a.z });
+      S.tb.push({ x: S.b.x, z: S.b.z });
+    }
   }
 
   // RK4 一步
@@ -89,9 +102,10 @@ _JS = r"""
   }
 
   function toScreen(x, z){
-    // 世界范围：x ∈ [-25, 25]，z ∈ [0, 55]
-    const sx = W / 56, sz = H / 62;
-    return { x: W / 2 + x * sx, y: H - 24 - z * sz };
+    // 等比映射：x ∈ [-25,25]，z ∈ [0,55]；非等比会把蝴蝶压扁
+    const pad = 36;
+    const s = Math.min((W - pad * 2) / 50, (H - pad * 2) / 58);
+    return { x: W / 2 + x * s, y: H - pad - z * s };
   }
 
   function draw(){
@@ -146,21 +160,23 @@ _JS = r"""
 
   var last = performance.now(), acc = 0;
   const DT = 0.004;
+  const MAXPTS = 6000;
   function loop(now){
     let dt = Math.min((now - last) / 1000, 0.1);
     last = now;
     if (S.run && S.a && S.b){
-      acc += dt * 26;                       // 时间加速
+      acc += dt * 9;                        // 时间加速
       let guard = 0;
       while (acc >= DT && guard++ < 400){
         S.a = rk4(S.a, DT);
         S.b = rk4(S.b, DT);
         S.t += DT;
         acc -= DT;
+        // 每个子步都记点：否则稀疏采样会把蝴蝶连成放射状折线
+        S.ta.push({ x: S.a.x, z: S.a.z });
+        S.tb.push({ x: S.b.x, z: S.b.z });
       }
-      S.ta.push({ x: S.a.x, z: S.a.z });
-      S.tb.push({ x: S.b.x, z: S.b.z });
-      if (S.ta.length > 2600){ S.ta.shift(); S.tb.shift(); }
+      while (S.ta.length > MAXPTS){ S.ta.shift(); S.tb.shift(); }
       metrics();
     }
     draw();

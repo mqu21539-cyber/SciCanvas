@@ -16,7 +16,7 @@
 
 <br/>
 
-<img src="./assets/demo.gif" alt="SciCanvas Demo" width="92%" style="border-radius: 12px; border: 1px solid #1e293b;" />
+<img src="../assets/demo.gif" alt="SciCanvas Demo" width="92%" style="border-radius: 12px; border: 1px solid #1e293b;" />
 
 </div>
 
@@ -122,8 +122,13 @@ It is **dual-mode**: it probes a local FastAPI backend first (`/api/health`, 2.5
 | Experiment | File |
 | :--- | :--- |
 | 多普勒效应与马赫锥音爆临界仿真 | `gallery/labs/doppler-sonic-boom.html` |
+| 多普勒（双 Agent 实时生成版） | `gallery/labs/doppler-agentic.html` |
+| 动量梯度下降 | `gallery/labs/gradient-descent.html` |
+| 双星引力弹弓 | `gallery/labs/binary-star-slingshot.html` |
+| 弹簧振子（dsh 插件生成） | `gallery/labs/spring-oscillator.html` |
 
-Record a 12s screen capture, save it as `assets/demo.gif` (< 10MB), and it will render under the title above.
+`../assets/demo.gif` 由 `tools/capture-frames.mjs`（真实 Chrome 截帧）+ `tools/build-assets.py`（合成）产出，
+改了模板或 UI 后重新跑这两步即可更新。
 
 ## 简体中文说明
 

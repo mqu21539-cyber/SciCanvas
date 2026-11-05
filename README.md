@@ -2,7 +2,26 @@
 
 把课本段落、公式或论文摘要，变成可拖拽参数、带实时数值的 2D 互动实验沙盒。
 
+<p align="center">
+  <img src="./assets/demo.gif" alt="SciCanvas 六个真实实验：洛伦兹吸引子、行波叠加、电场线、轨道、抛体、多普勒" width="92%" />
+</p>
+
+<p align="center">
+  <em>上面每一个画面都是真实生成的产物，没有一张是设计稿</em>
+</p>
+
 本仓库同时存放**两条技术路线**——A 方案已实现可跑，B 方案是已验证思路的原型骨架。
+
+---
+
+## 架构
+
+<p align="center">
+  <img src="./assets/architecture.svg" alt="SciCanvas 架构图" width="96%" />
+</p>
+
+两条生成路径共用一个输出契约：**单文件 HTML**。所以模板引擎和双 Agent 可以随时互相兜底，
+产物也天然可下载、可离线、可塞进 iframe 沙盒。
 
 ---
 
@@ -65,7 +84,8 @@ npm install
 npm run dev                 # http://localhost:3000
 ```
 
-**不想装环境？** 直接双击 `A-自由生成/gallery/index.html`，4 个预生成实验立刻可玩。
+**不想装环境？** 直接双击 `A-自由生成/gallery/index.html`，5 个预生成实验立刻可玩；
+或运行 `A-自由生成/gallery/start_gallery.cmd` 起本地静态服务（推荐，manifest 才能正常加载）。
 
 ---
 
@@ -80,15 +100,29 @@ python generator.py --text "演示单摆阻尼振动" --out out/demo.html   # �
 
 ---
 
+## 特性
+
+| 特性 | 一句话 |
+| :--- | :--- |
+| **双 Agent 生成** | Planner 拆物理量 → Coder 写单文件 HTML → Fixer 兜底修 Bug |
+| **自愈沙盒** | 运行时 `window.onerror` 回传后端，自动打补丁并重渲染（同产物最多 2 次） |
+| **先猜后试** | 挑战卡先让你押一个预测，再拖滑块验证——不是拖着玩，是想完再玩 |
+| **双沙盒同屏** | 两块独立 iframe 跑同一份代码，左右分别调参对比（可同步重置） |
+| **混合路由** | 模板命中 ≈2 秒，未命中回落双 Agent ≈25 秒 |
+| **一键导出** | 任意实验都能下成单个 `.html`，离线可用、可嵌 Notion |
+| **dsh 原生插件** | `render_science_lab` / `heal_science_lab`，生成即登记展厅 |
+
+---
+
 ## 回归测试
 
 ```bash
-node tests/run-all.mjs          # 全量（2–3 分钟）
+node tests/run-all.mjs          # 全量（约 2 分钟）
 node tests/run-all.mjs --fast   # 只跑不花钱的快速项
 node tests/run-all.mjs --only 04
 ```
 
-六个用例覆盖：后端冒烟、插件契约、混合路由、模板渲染、自愈链路、前端徽标。
+七个用例覆盖：后端冒烟、插件契约、混合路由、模板渲染、自愈链路、前端徽标、交互功能、展厅一致性。
 缺环境的用例会自动 SKIP 而不是误报失败。详见 [tests/README](tests/README.md)。
 
 ---
@@ -97,12 +131,19 @@ node tests/run-all.mjs --only 04
 
 | 模块 | 状态 |
 | :--- | :--- |
-| A · 双 Agent 生成 | ✅ 5 次真实调用全部成功，产物可运行 |
-| A · 前端工作台 | ✅ `next build` 通过，三阶段进度条 + 引擎徽标 |
-| A · 静态展厅 | ✅ 4 个实验（3 个由模型现场生成） |
+| A · 双 Agent 生成 | ✅ 多次真实调用全部成功，产物可运行 |
+| A · 前端工作台 | ✅ 进度条 / 引擎徽标 / 先猜后试 / 双沙盒对比 |
+| A · 静态展厅 | ✅ 5 个实验（4 个由模型现场生成） |
 | A · 自愈闭环 | ✅ 真实 Chrome 端到端验证：报错 → /api/fix → 重渲染 |
-| A · dsh 插件 | ✅ 按 dsh 真实契约重写（`ctx.tools` + `defineTool`），契约自测全过 |
-| 混合路由 | ✅ 模板命中 1.3–1.9s，未命中回落 20–27s |
+| A · dsh 插件 | ✅ 已安装进 desktop profile，生成即登记展厅 |
+| 混合路由 | ✅ 模板命中 1.3–2.1s，未命中回落 20–30s |
 | B · 生成器 + 模板 | ✅ 6 个模板，真实浏览器逐页验证 |
 
-细节与证据见 [技术可行性评估](docs/技术可行性评估.md)。
+细节与证据见 [技术可行性评估](docs/技术可行性评估.md)，开发进度见 [执行清单](docs/执行清单.md)。
+
+---
+
+## 参与
+
+提交前请跑一次 `node tests/run-all.mjs --fast`；分支约定与代码风格见 [CONTRIBUTING](CONTRIBUTING.md)，
+版本变化见 [CHANGELOG](CHANGELOG.md)。

@@ -24,6 +24,9 @@ B-模板化生成/out/
 # --- 本地探针现场（从 app.asar 抽出的 dsh 源码，仅供分析，不入库）---
 .probe/
 
+# --- 素材中间帧（由 tools/capture-frames.mjs 生成，最终合成到 demo.gif）---
+assets/_frames/
+
 # --- os / editor ---
 .DS_Store
 Thumbs.db

@@ -48,6 +48,11 @@ export default function SciCanvasApp() {
     { mode: "template" | "agent"; template?: string | null; ms: number } | null
   >(null);
   const [viewMode, setViewMode] = useState<"preview" | "code">("preview");
+  // 「先猜后试」：用户先选一个预测，再去拖滑块验证
+  const [guess, setGuess] = useState<string | null>(null);
+  // 「双沙盒同屏对比」：两块独立 iframe 跑同一份代码，各自拖滑块
+  const [split, setSplit] = useState(false);
+  const [splitNonce, setSplitNonce] = useState(0);
   const handleGenerate = async (inputPrompt = prompt) => {
     setLoading(true);
     try {
@@ -63,6 +68,8 @@ export default function SciCanvasApp() {
       }
       setPlan(data.plan);
       setHtmlCode(data.html);
+      setGuess(null);
+      setSplitNonce((n) => n + 1);
       setEngine({
         mode: data.mode === "template" ? "template" : "agent",
         template: data.template ?? null,
@@ -156,6 +163,30 @@ export default function SciCanvasApp() {
         </div>
         {htmlCode && (
           <div className="flex gap-3">
+            {viewMode === "preview" && (
+              <button
+                onClick={() => {
+                  setSplit((s) => !s);
+                  setSplitNonce((n) => n + 1);
+                }}
+                title="两块独立沙盒跑同一份代码，可分别拖滑块对比参数影响"
+                className={`px-3 py-1.5 text-xs rounded-lg border transition ${
+                  split
+                    ? "bg-emerald-600/20 border-emerald-500/40 text-emerald-300"
+                    : "bg-slate-800 hover:bg-slate-700 border-slate-700"
+                }`}
+              >
+                {split ? "⇄ 对比中" : "⇄ 对比模式"}
+              </button>
+            )}
+            {split && viewMode === "preview" && (
+              <button
+                onClick={() => setSplitNonce((n) => n + 1)}
+                className="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700"
+              >
+                ↺ 同步重置
+              </button>
+            )}
             <button
               onClick={() => setViewMode(viewMode === "preview" ? "code" : "preview")}
               className="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700"
@@ -225,8 +256,29 @@ export default function SciCanvasApp() {
               </div>
               {plan.intuition_challenge && (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-200">
-                  <span className="font-bold">🤯 直觉挑战：</span>
-                  {plan.intuition_challenge}
+                  <div className="font-bold mb-1">🤯 直觉挑战</div>
+                  <p className="leading-relaxed">{plan.intuition_challenge}</p>
+                  {guess ? (
+                    <p className="mt-2 text-emerald-300">
+                      已锁定猜测：<b>{guess}</b>
+                      <span className="text-emerald-400/70"> · 现在去右侧拖动滑块验证</span>
+                    </p>
+                  ) : (
+                    <>
+                      <p className="mt-2 text-amber-300/70">先猜一猜，别急着拖滑块：</p>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {["会变大 ↑", "会变小 ↓", "基本不变 →"].map((g) => (
+                          <button
+                            key={g}
+                            onClick={() => setGuess(g)}
+                            className="px-2.5 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-amber-100 transition"
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -271,12 +323,33 @@ export default function SciCanvasApp() {
               </div>
             )
           ) : viewMode === "preview" ? (
-            <iframe
-              srcDoc={htmlCode}
-              title="SciCanvas Sandbox"
-              sandbox="allow-scripts"
-              className="w-full flex-1 border-0 bg-slate-950"
-            />
+            split ? (
+              <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-3 p-3">
+                {(["A", "B"] as const).map((tag) => (
+                  <div
+                    key={`${tag}-${splitNonce}`}
+                    className="relative rounded-lg overflow-hidden border border-slate-800 bg-slate-950"
+                  >
+                    <span className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-slate-900/90 border border-slate-700 text-[11px] font-mono text-cyan-300">
+                      {tag}
+                    </span>
+                    <iframe
+                      srcDoc={htmlCode}
+                      title={`SciCanvas Sandbox ${tag}`}
+                      sandbox="allow-scripts"
+                      className="w-full h-full border-0 bg-slate-950"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <iframe
+                srcDoc={htmlCode}
+                title="SciCanvas Sandbox"
+                sandbox="allow-scripts"
+                className="w-full flex-1 border-0 bg-slate-950"
+              />
+            )
           ) : (
             <pre className="p-4 text-xs font-mono text-emerald-400 overflow-auto flex-1 bg-slate-950">
               {htmlCode}
