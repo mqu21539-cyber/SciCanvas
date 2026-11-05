@@ -78,6 +78,10 @@ cp .env.example .env        # 填入 DEEPSEEK_API_KEY
 uvicorn main:app --reload --port 8000
 ```
 
+> 若发现流式首帧要等 1–3 秒才出现：先确认 8000 端口上没有重复监听，再试换个端口
+> （实测本机 8000 端口会被外部软件拖慢，8003/8021 上首帧只要 2ms）。
+> 与 uvicorn 的 `--http` 实现无关，详见 `docs/技术可行性评估.md`。
+
 ```bash
 cd A-自由生成/frontend
 npm install
