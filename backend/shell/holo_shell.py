@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """SciCanvas 全息 2.5D 底座（Holo Shell）。
 
 设计目标：把「四层 Z 轴、示波器、子弹时间、四滤镜、残影、靶向锁定、运镜」
@@ -120,14 +120,30 @@ window.onerror = function(msg, url, line, col, error) {
   .cap.on { border-color: var(--cyan); box-shadow: 0 0 14px rgba(56,189,248,.25) inset; }
   .cap .row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-bottom: 5px; }
   .cap .nm { color: #bae6fd; }
-  .cap .vl { color: var(--cyan); background: rgba(56,189,248,.12); border: 1px solid rgba(56,189,248,.25); padding: 1px 6px; }
+  .cap .vl { color: var(--cyan); background: rgba(56,189,248,.12); border: 1px solid rgba(56,189,248,.25); padding: 1px 6px; transition: transform .18s cubic-bezier(.34,1.56,.64,1); display: inline-block; }
+  .cap.on .vl { transform: scale(1.08); }
+  /* 机械刻度尺：视觉层是刻度 + 游标，真正的控件是盖在上面的透明 range */
+  .cap .ruler { position: relative; height: 26px; display: flex; align-items: center; }
+  .cap .ticks { display: flex; align-items: flex-end; justify-content: space-between; width: 100%; height: 18px; }
+  .cap .tk { width: 1px; height: 6px; background: #24405a; transition: background .1s, height .1s; }
+  .cap .tk.major { height: 11px; background: #2f5470; }
+  .cap .tk.lit { background: var(--cyan); box-shadow: 0 0 6px rgba(56,189,248,.7); }
+  .cap .needle {
+    position: absolute; top: 2px; left: var(--frac, 0%); width: 2px; height: 14px;
+    background: #f8fafc; box-shadow: 0 0 10px var(--cyan);
+    transform: translateX(-1px); transition: left .06s linear;
+  }
+  .cap .needle::after {
+    content: ''; position: absolute; left: -3px; top: -3px; width: 8px; height: 4px;
+    background: #f8fafc; clip-path: polygon(50% 100%, 0 0, 100% 0);
+  }
   input[type=range] {
-    -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
-    border-radius: 2px; background: #1e293b; outline: none; cursor: pointer;
+    -webkit-appearance: none; appearance: none; position: absolute; inset: 0; width: 100%;
+    height: 100%; margin: 0; background: transparent; outline: none; cursor: ew-resize; opacity: 0;
   }
   input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%;
-    background: var(--cyan); box-shadow: 0 0 9px var(--cyan); cursor: pointer;
+    -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%;
+    background: transparent; cursor: ew-resize;
   }
   .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
   .metric { border: 1px solid rgba(56,189,248,.15); background: rgba(2,6,23,.6); padding: 6px 8px; }
@@ -315,7 +331,9 @@ window.onerror = function(msg, url, line, col, error) {
     svg[name].innerHTML = html;
   }
 
-  var TIME_SCALE = 1, STEP_ONCE = false, HIGHLIGHT = null;
+  var TIME_SCALE = 1, STEP_ONCE = false, HIGHLIGHT = null, RULERS = {};
+  // 每个参数一个重绘函数：外部改值（混沌注入/画布拖拽）后调它同步刻度尺
+
 
   // ---------------- 示波器 ----------------
   var scope = document.getElementById('scope');
@@ -369,14 +387,32 @@ window.onerror = function(msg, url, line, col, error) {
   };
   window.HOLO = api;
 
-  // ---------------- 参数胶囊 ----------------
+  // ---------------- 参数胶囊（机械刻度尺） ----------------
+  // 视觉上换成游标卡尺式的刻度盘，但**底下仍然是原生 input[type=range]**：
+  // 它只被设成透明盖在上面，所以已有的选择器、input 事件、外部脚本全部照旧。
   var capBox = document.getElementById('capsules');
+  var TICKS = 28;
+
+  function syncRuler(wrap, input, c) {
+    var frac = (parseFloat(input.value) - c.min) / ((c.max - c.min) || 1);
+    frac = Math.max(0, Math.min(1, frac));
+    wrap.style.setProperty('--frac', (frac * 100).toFixed(2) + '%');
+    var ticks = wrap.querySelectorAll('.tk');
+    var lit = Math.round(frac * (ticks.length - 1));
+    for (var i = 0; i < ticks.length; i++) {
+      ticks[i].className = 'tk' + (i <= lit ? ' lit' : '') + (i % 4 === 0 ? ' major' : '');
+    }
+  }
+
   SPEC.controls.forEach(function(c){
     var wrap = document.createElement('div');
     wrap.className = 'cap';
+    var ticksHtml = '';
+    for (var i = 0; i < TICKS; i++) ticksHtml += '<i class="tk' + (i % 4 === 0 ? ' major' : '') + '"></i>';
     wrap.innerHTML =
       '<div class="row"><span class="nm">' + c.id + ' <b>' + c.label + '</b></span>' +
-      '<span class="vl" id="v_' + c.id + '">' + P[c.id] + (c.unit || '') + '</span></div>';
+      '<span class="vl" id="v_' + c.id + '">' + P[c.id] + (c.unit || '') + '</span></div>' +
+      '<div class="ruler"><div class="ticks">' + ticksHtml + '</div><div class="needle"></div></div>';
     var input = document.createElement('input');
     input.type = 'range'; input.min = c.min; input.max = c.max; input.step = c.step; input.value = P[c.id];
     input.setAttribute('data-k', c.id);
@@ -384,6 +420,7 @@ window.onerror = function(msg, url, line, col, error) {
       var val = parseFloat(input.value);
       P[c.id] = val;
       document.getElementById('v_' + c.id).textContent = val + (c.unit || '');
+      syncRuler(wrap, input, c);
       api.reset();
     });
     input.addEventListener('pointerenter', function(){
@@ -396,6 +433,12 @@ window.onerror = function(msg, url, line, col, error) {
     });
     wrap.appendChild(input);
     capBox.appendChild(wrap);
+    syncRuler(wrap, input, c);
+    RULERS[c.id] = function(){
+      input.value = String(P[c.id]);
+      document.getElementById('v_' + c.id).textContent = P[c.id] + (c.unit || '');
+      syncRuler(wrap, input, c);
+    };
   });
 
   // ---------------- 指标 ----------------
@@ -514,9 +557,7 @@ window.onerror = function(msg, url, line, col, error) {
     var d = ev.data || {};
     if (d.type === 'UPDATE_PARAM' && d.key in P) {
       P[d.key] = d.value;
-      var input = document.querySelector('#capsules input');
-      var el = document.getElementById('v_' + d.key);
-      if (el) el.textContent = d.value;
+      if (RULERS[d.key]) RULERS[d.key]();
       api.reset();
     } else if (d.type === 'HIGHLIGHT_TARGET') {
       HIGHLIGHT = d.active ? d.key : null;

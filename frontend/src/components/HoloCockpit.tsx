@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
+import BorderBeamCard from "./BorderBeamCard";
 import { useSciFiSound } from "../hooks/useSciFiSound";
 
 export type AgentStatus = "IDLE" | "PLANNING" | "CODING" | "HEALING" | "READY";
@@ -124,7 +125,13 @@ export default function HoloCockpit({
           transition: "transform 0.15s ease-out",
         }}
       >
-        {children}
+        {/* 流光边框：只包住舞台，不改变内部布局与事件 */}
+        <BorderBeamCard
+          active={!locked}
+          className="flex-1 flex flex-col min-h-0 border border-slate-800"
+        >
+          {children}
+        </BorderBeamCard>
       </div>
     </div>
   );

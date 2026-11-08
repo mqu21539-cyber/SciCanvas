@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import katex from "katex";
 import HoloCockpit, { type AgentStatus } from "../components/HoloCockpit";
+import MagneticHoloButton from "../components/MagneticHoloButton";
 import MathFormula, { toLatex } from "../components/MathFormula";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8010";
@@ -341,16 +342,43 @@ export default function SciCanvasApp() {
     URL.revokeObjectURL(url);
   };
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* 顶部导航栏 */}
-      <header className="border-b border-slate-800 px-6 py-4 flex items-center justify-between bg-slate-900/60 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">⚗️</span>
-          <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-transparent">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col relative">
+      {/* 背景：径向光晕 + 工程网格，只做装饰不接事件 */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-0"
+        style={{
+          background:
+            "radial-gradient(900px 520px at 18% -8%, rgba(56,189,248,0.10), transparent 60%)," +
+            "radial-gradient(760px 480px at 92% 4%, rgba(129,140,248,0.08), transparent 62%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-0 opacity-[0.16]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(148,163,184,.14) 1px, transparent 1px)," +
+            "linear-gradient(90deg, rgba(148,163,184,.14) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+          maskImage: "radial-gradient(circle at 50% 0%, black, transparent 72%)",
+          WebkitMaskImage: "radial-gradient(circle at 50% 0%, black, transparent 72%)",
+        }}
+      />
+
+      {/* 顶部指挥条 */}
+      <header className="relative z-20 h-14 shrink-0 border-b border-slate-800/80 px-5 flex items-center justify-between bg-slate-950/70 backdrop-blur">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-xl">⚗️</span>
+          <h1 className="text-base font-semibold tracking-tight bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent whitespace-nowrap">
             SciCanvas
           </h1>
-          <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-            Powered by DeepSeek & DSH
+          <span className="hidden md:inline text-[10px] font-mono tracking-[0.18em] text-slate-500">
+            HOLOGRAPHIC LAB
+          </span>
+          <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300/90 border border-cyan-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            DeepSeek · DSH
           </span>
           {engine && (
             <span
@@ -425,14 +453,17 @@ export default function SciCanvasApp() {
           {error}
         </div>
       )}
-      {/* 主体分栏 */}
-      <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
-        {/* 左侧控制与原理解析区 */}
-        <div className="lg:col-span-4 flex flex-col gap-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
-            <label className="text-sm font-semibold text-slate-300">
-              输入课本概念、物理定律或论文摘要：
-            </label>
+      {/* 主体：左侧控制台 + 右侧舞台 */}
+      <main className="relative z-10 flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[368px_minmax(0,1fr)] gap-4 p-4">
+        {/* 左侧控制台 */}
+        <div className="flex flex-col gap-3 min-h-0 lg:overflow-y-auto lg:pr-1">
+          <div className="relative bg-slate-900/70 border border-slate-800 rounded-xl p-4 flex flex-col gap-3 backdrop-blur-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono tracking-[0.22em] text-cyan-400/80">
+                01 / INPUT
+              </span>
+              <span className="text-[10px] font-mono text-slate-600">CONCEPT · LAW · PAPER</span>
+            </div>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -462,12 +493,12 @@ export default function SciCanvasApp() {
                 ✕ 取消生成（已等待 {elapsed}s）
               </button>
             ) : (
-              <button
+              <MagneticHoloButton
                 onClick={() => handleGenerate()}
                 className="mt-2 w-full py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 font-semibold text-sm shadow-lg transition"
               >
                 ✨ 立即生成 2D 互动实验室
-              </button>
+              </MagneticHoloButton>
             )}
           </div>
           {restored && (
@@ -486,9 +517,15 @@ export default function SciCanvasApp() {
           )}
           {/* 科学蓝图与反直觉挑战卡片 */}
           {plan && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
+            <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 flex flex-col gap-3 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono tracking-[0.22em] text-indigo-400/80">
+                  02 / BLUEPRINT
+                </span>
+                <span className="text-[10px] font-mono text-slate-600">PLANNER OUTPUT</span>
+              </div>
               <div>
-                <h2 className="text-base font-bold text-cyan-400">{plan.title}</h2>
+                <h2 className="text-base font-bold text-cyan-400 leading-tight">{plan.title}</h2>
                 <p className="text-xs text-slate-400 mt-1">{plan.subtitle}</p>
               </div>
               <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-indigo-300">
@@ -525,10 +562,17 @@ export default function SciCanvasApp() {
             </div>
           )}
         </div>
-        {/* 右侧交互沙盒渲染区 */}
-        <div className="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col min-h-[600px] relative">
+        {/* 右侧交互沙盒：舞台 */}
+        <div className="relative flex flex-col min-h-[600px] min-w-0">
+          {/* 四角 HUD 括号 */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-20">
+            <span className="absolute left-0 top-0 w-4 h-4 border-l border-t border-cyan-400/50" />
+            <span className="absolute right-0 top-0 w-4 h-4 border-r border-t border-cyan-400/50" />
+            <span className="absolute left-0 bottom-0 w-4 h-4 border-l border-b border-cyan-400/50" />
+            <span className="absolute right-0 bottom-0 w-4 h-4 border-r border-b border-cyan-400/50" />
+          </div>
           {fixing && (
-            <div className="absolute top-3 right-3 z-20 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs animate-pulse">
+            <div className="absolute top-3 right-3 z-30 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs animate-pulse">
 🩹 检测到沙盒异常，Self-Healing Agent 正在自动热修复代码...
             </div>
           )}
