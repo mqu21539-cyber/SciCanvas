@@ -1,9 +1,25 @@
-# 变更记录
+﻿# 变更记录
 
 遵循 [语义化版本](https://semver.org/lang/zh-CN/)。本项目在正式发版前按能力阶段递增。
 
 ---
 
+## [1.2.2] — 2026-11-08
+
+### 修复 · 只有最后一根滑块能拖
+用户实测发现：四根刻度尺里只有最下面的「发射速率」能点，其余三根完全没反应。
+
+原因是我给 `input[type=range]` 加了 `position: absolute; inset: 0`，
+但胶囊 `.cap` 没有 `position: relative`——于是透明滑块**相对整个页面定位**，
+最后一根铺满整页盖在最上层，把其它几根全挡住了。
+
+修法：`.cap` 加 `position: relative`，并把定位规则收窄成 `.cap > input[type=range]`。
+
+### 测试
+`check-html.mjs` 新增「每根滑块都能点到」：用 `elementFromPoint` 逐个胶囊中心做命中测试，
+命不中自己的 input 就红。四个模板验过：`L/c/g`、`lam/v/phase`、`q1/q2/d`、`v0/ang/k` 全部可达。
+
+---
 ## [1.2.1] — 2026-11-08
 
 ### 测试 · 遥测指标不许出现 NaN

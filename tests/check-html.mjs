@@ -41,7 +41,19 @@ await withChrome(async ({ newPage }) => {
       const metrics = [...document.querySelectorAll('.metric .v')].map(e => e.textContent.trim());
       const badMetrics = metrics.filter(x => /NaN|undefined|null/i.test(x));
       const numericMetrics = metrics.filter(x => /[0-9]/.test(x)).length;
-      return { canvas: !!c, painted, sampled, sliders, layers, metrics, badMetrics, numericMetrics };
+      // 每根滑块都必须能被真正点到。踩过一次：胶囊少了 position:relative，
+      // 透明 range 相对整页定位，最后一根盖住全页，其它三根永远拖不动。
+      const caps = [...document.querySelectorAll('.cap')].map(cap => {
+        const inp = cap.querySelector('input[type=range]');
+        const b = cap.getBoundingClientRect();
+        const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height - 6);
+        return {
+          k: inp ? inp.dataset.k : null,
+          hitK: hit && hit.dataset ? hit.dataset.k : null,
+        };
+      });
+      const deadSliders = caps.filter(c => c.k && c.hitK !== c.k);
+      return { canvas: !!c, painted, sampled, sliders, layers, metrics, badMetrics, numericMetrics, caps, deadSliders };
     })()`)
     const name = file.split(/[\\/]/).pop()
     const svgNodes = (info.layers || []).reduce((a, b) => a + Math.max(0, b), 0)
@@ -64,6 +76,15 @@ await withChrome(async ({ newPage }) => {
       (info.numericMetrics || 0) > 0,
       `${info.numericMetrics}/${(info.metrics || []).length}`
     )
+    if ((info.caps || []).length) {
+      t.ok(
+        `${name}: 每根滑块都能点到`,
+        (info.deadSliders || []).length === 0,
+        info.deadSliders && info.deadSliders.length
+          ? `点不到 ${JSON.stringify(info.deadSliders)}`
+          : `${info.caps.map((c) => c.k).join(' / ')}`
+      )
+    }
   }
 })
 process.exit(t.done())

@@ -116,7 +116,7 @@ window.onerror = function(msg, url, line, col, error) {
     font-size: 10px; letter-spacing: .12em; color: #475569;
     margin: 6px 0 8px; display: flex; justify-content: space-between; align-items: center;
   }
-  .cap { border: 1px solid rgba(56,189,248,.18); background: rgba(2,6,23,.6); padding: 7px 9px; margin-bottom: 7px; transition: border-color .15s, box-shadow .15s; }
+  .cap { position: relative; border: 1px solid rgba(56,189,248,.18); background: rgba(2,6,23,.6); padding: 7px 9px; margin-bottom: 7px; transition: border-color .15s, box-shadow .15s; }
   .cap.on { border-color: var(--cyan); box-shadow: 0 0 14px rgba(56,189,248,.25) inset; }
   .cap .row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-bottom: 5px; }
   .cap .nm { color: #bae6fd; }
@@ -141,6 +141,9 @@ window.onerror = function(msg, url, line, col, error) {
     -webkit-appearance: none; appearance: none; position: absolute; inset: 0; width: 100%;
     height: 100%; margin: 0; background: transparent; outline: none; cursor: ew-resize; opacity: 0;
   }
+  /* 必须锁在胶囊内部：少了 position:relative 时 inset:0 会相对页面定位，
+     于是最后一根滑块盖住整页，其它几根永远点不到（真发生过）。 */
+  .cap > input[type=range] { position: absolute; inset: 0; }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%;
     background: transparent; cursor: ew-resize;
