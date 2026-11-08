@@ -56,6 +56,8 @@ export default function SciCanvasApp() {
   // 全息座舱：双 Agent 脉冲条与自愈计数
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("IDLE");
   const [healCount, setHealCount] = useState(0);
+  // 画布内直接抓握后，宿主收到的参数回传（短暂提示）
+  const [canvasSync, setCanvasSync] = useState<{ key: string; value: number } | null>(null);
   const [viewMode, setViewMode] = useState<"preview" | "code">("preview");
   // 「先猜后试」：用户先选一个预测，再去拖滑块验证
   const [guess, setGuess] = useState<string | null>(null);
@@ -256,6 +258,11 @@ export default function SciCanvasApp() {
   const healBudget = useRef(2);
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
+      // 画布内直接抓握后，底座把新参数值回传给宿主
+      if (event.data?.type === "SYNC_FROM_CANVAS") {
+        setCanvasSync({ key: String(event.data.key), value: Number(event.data.value) });
+        return;
+      }
       if (event.data?.type === "SCICANVAS_ERROR" && htmlCode && !fixing) {
         if (healBudget.current <= 0) {
           setError("沙盒多次自愈仍未通过，已停止自动修复。请调整提示词后重新生成。");
@@ -287,6 +294,13 @@ export default function SciCanvasApp() {
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, [htmlCode, fixing]);
+
+  // 画布回传的提示自动消失
+  useEffect(() => {
+    if (!canvasSync) return;
+    const id = setTimeout(() => setCanvasSync(null), 1800);
+    return () => clearTimeout(id);
+  }, [canvasSync]);
   // 向沙盒广播指令（对比模式下有两块，一起发）
   const postToSandbox = (payload: Record<string, unknown>) => {
     document.querySelectorAll("iframe").forEach((f) => {
@@ -571,6 +585,12 @@ export default function SciCanvasApp() {
             <span className="absolute left-0 bottom-0 w-4 h-4 border-l border-b border-cyan-400/50" />
             <span className="absolute right-0 bottom-0 w-4 h-4 border-r border-b border-cyan-400/50" />
           </div>
+          {/* 画布抓握回传的提示 */}
+          {canvasSync && (
+            <div className="absolute bottom-4 left-4 z-30 px-2.5 py-1 rounded-md bg-cyan-500/15 border border-cyan-500/40 text-cyan-200 text-[10px] font-mono tracking-wide">
+              ⇕ 画布同步 · {canvasSync.key} = {canvasSync.value}
+            </div>
+          )}
           {fixing && (
             <div className="absolute top-3 right-3 z-30 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs animate-pulse">
 🩹 检测到沙盒异常，Self-Healing Agent 正在自动热修复代码...

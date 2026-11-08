@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """模板：抛体运动（全息 2.5D 版）。"""
 from shell import holo_shell
 
@@ -59,6 +59,8 @@ _JS = r"""
     launch();
     HOLO.L0(baseLayer());
     HOLO.L1(''); HOLO.L2(''); HOLO.L3('');
+    // 直接抓握：在画布里上下拖动发射器，等于拖「发射角度」滑块
+    if (HOLO.bindDrag) HOLO.bindDrag('ang');
   };
 
   window.frame = function(dt, t){

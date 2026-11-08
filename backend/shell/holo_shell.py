@@ -163,6 +163,18 @@ window.onerror = function(msg, url, line, col, error) {
   }
   .layer svg { width: 100%; height: 100%; overflow: visible; display: block; }
   .stage.is3d .layer { pointer-events: auto; border-color: rgba(56,189,248,.3); background: rgba(15,23,42,.22); }
+  /* 声明了可抓握参数的实验：L1 实体层接受指针，光标变成抓手 */
+  .stage.grabbable #l1 { pointer-events: auto; }
+  .stage.grabbable #l1 * { pointer-events: none; }
+  .stage.grabbable #l1 { cursor: grab; }
+  .stage.grabbable.grabbing #l1 { cursor: grabbing; }
+  .stage.grabbable::after {
+    content: '⇕ 可在画布内直接拖动';
+    position: absolute; right: 10px; bottom: 10px; z-index: 40;
+    font-size: 10px; color: rgba(56,189,248,.75); letter-spacing: .08em;
+    padding: 2px 7px; border: 1px solid rgba(56,189,248,.25);
+    background: rgba(2,6,23,.6); pointer-events: none;
+  }
   .stage.is3d .L0 { transform: translateZ(0); }
   .stage.is3d .L1 { transform: translateZ(calc(var(--z-gap) * 1)); filter: drop-shadow(-10px 16px 8px rgba(0,0,0,.6)); }
   .stage.is3d .ghostly { transform: translateZ(calc(var(--z-gap) * 1.4)); }
@@ -331,8 +343,13 @@ window.onerror = function(msg, url, line, col, error) {
     svg[name].innerHTML = html;
   }
 
-  var TIME_SCALE = 1, STEP_ONCE = false, HIGHLIGHT = null, RULERS = {};
+  var TIME_SCALE = 1, STEP_ONCE = false, HIGHLIGHT = null, RULERS = {}, GRAB = null;
   // 每个参数一个重绘函数：外部改值（混沌注入/画布拖拽）后调它同步刻度尺
+  // GRAB：当前被声明为「可在画布里抓握」的参数，模板通过 HOLO.bindDrag(key) 注册
+
+  function postToParent(msg) {
+    try { if (window.parent && window.parent !== window) window.parent.postMessage(msg, '*'); } catch (e) {}
+  }
 
 
   // ---------------- 示波器 ----------------
@@ -382,6 +399,22 @@ window.onerror = function(msg, url, line, col, error) {
       return { u: OX + (x - y) * Math.cos(rad), v: OY + (x + y) * Math.sin(rad) - (z || 0) };
     },
     highlight: function(){ return HIGHLIGHT; },
+    // 外部/画布内改参数：统一走这里，刻度尺与父窗口才会跟着动
+    setP: function(key, value){
+      P[key] = value;
+      if (RULERS[key]) RULERS[key]();
+      api.reset();
+      postToParent({ type: 'SYNC_FROM_CANVAS', key: key, value: value });
+    },
+    // 直接抓握：模板只要声明「哪个参数可以抓」，底座负责手势与同步
+    bindDrag: function(key){
+      var ctrl = null;
+      SPEC.controls.forEach(function(c){ if (c.id === key) ctrl = c; });
+      if (!ctrl) return false;
+      GRAB = { key: key, ctrl: ctrl };
+      stage.classList.add('grabbable');
+      return true;
+    },
     ghostActive: function(){ return !!ghostHTML; },
     timeScale: function(){ return TIME_SCALE; }
   };
@@ -456,6 +489,45 @@ window.onerror = function(msg, url, line, col, error) {
   var badge = document.getElementById('badge');
   var is3D = false, rotX = 56, rotZ = -30, zGap = 44, dragging = false, cinema = null;
   var ghostHTML = { l1: null, l2: null };
+
+  // ---------------- 画布内直接抓握 ----------------
+  // 模板在 reset() 里调 HOLO.bindDrag('ang')，底座就把 L1 层变成可拖的：
+  // 上/下拖动 → 线性映射到该参数的 [min, max]，边走边重置，并把新值回传父窗口。
+  (function initGrab() {
+    var l1 = document.getElementById('l1');
+    if (!l1) return;
+
+    function apply(e) {
+      if (!GRAB || is3D) return;
+      var r = document.querySelector('.stage-area').getBoundingClientRect();
+      var frac = 1 - (e.clientY - r.top) / (r.height || 1);   // 往上拖 = 增大
+      frac = Math.max(0, Math.min(1, frac));
+      var c = GRAB.ctrl, step = c.step || 0.01;
+      var v = c.min + frac * (c.max - c.min);
+      v = Math.round(v / step) * step;
+      v = Math.max(c.min, Math.min(c.max, v));
+      v = Math.round(v * 1000) / 1000;
+      api.setP(GRAB.key, v);       // reset + 刻度尺 + 回传父窗口
+    }
+
+    l1.addEventListener('pointerdown', function (e) {
+      if (!GRAB || is3D) return;
+      e.preventDefault();
+      stage.classList.add('grabbing');
+      try { l1.setPointerCapture(e.pointerId); } catch (e2) {}
+      apply(e);
+    });
+    l1.addEventListener('pointermove', function (e) {
+      if (!GRAB || is3D || !e.buttons) return;
+      apply(e);
+    });
+    ['pointerup', 'pointercancel'].forEach(function (t) {
+      l1.addEventListener(t, function (e) {
+        stage.classList.remove('grabbing');
+        try { l1.releasePointerCapture(e.pointerId); } catch (e2) {}
+      });
+    });
+  })();
 
   function applyStage() {
     stage.style.transform = is3D
@@ -586,7 +658,9 @@ window.onerror = function(msg, url, line, col, error) {
   function loop(now) {
     // 底座脚本先于模板脚本执行，所以首帧之前模板的 reset() 还不存在——
     // 推迟到第一次循环再初始化，否则 L0 基准层会是空的。
-    if (!started) { started = true; safeReset(); }
+    // 注意：首帧时模板脚本可能还没执行完（reset 还不存在），所以只在 reset
+    // 真的出现之后才置 started，否则会漏掉整个初始化——顺带漏掉 bindDrag 注册。
+    if (!started && typeof window.reset === 'function') { started = true; safeReset(); }
     var raw = Math.min(0.05, (now - prev) / 1000);
     prev = now;
     var dt = raw * TIME_SCALE;
