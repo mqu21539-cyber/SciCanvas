@@ -20,6 +20,9 @@ import cache
 
 _HERE = Path(__file__).resolve().parent
 
+# 必须与 shell/holo_shell.py 里的注释标记、以及前端的 SHELL_STAMP 三方一致
+SHELL_STAMP = "scicanvas-shell v1.3.0"
+
 _bgen = None
 _load_error = None
 
@@ -217,6 +220,10 @@ def route_and_generate(prompt: str, strategy: str = "auto", emit=None) -> dict:
     key = cache.key_for(expanded_prompt, strategy)
 
     hit = cache.get(key)
+    # 底座升过版（改了滑块命中区、音效等可见行为）后，旧缓存里的产物不能再用：
+    # 否则用户清了缓存也还是拿到老界面，"修好了但看起来没修"。
+    if hit and SHELL_STAMP not in str(hit.get("html", "")):
+        hit = None
     if hit:
         _emit(emit, "cache_hit")
         return {

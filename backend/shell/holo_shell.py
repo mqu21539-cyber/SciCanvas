@@ -29,6 +29,7 @@ import json
 
 _TEMPLATE = r"""<!DOCTYPE html>
 <html lang="zh-CN">
+<!-- scicanvas-shell v1.3.0 · 前端靠这行判断产物新旧，改了可见行为记得升版本 -->
 <head>
 <script>
 window.onerror = function(msg, url, line, col, error) {
@@ -141,9 +142,10 @@ window.onerror = function(msg, url, line, col, error) {
     -webkit-appearance: none; appearance: none; position: absolute; inset: 0; width: 100%;
     height: 100%; margin: 0; background: transparent; outline: none; cursor: ew-resize; opacity: 0;
   }
-  /* 必须锁在胶囊内部：少了 position:relative 时 inset:0 会相对页面定位，
-     于是最后一根滑块盖住整页，其它几根永远点不到（真发生过）。 */
-  .cap > input[type=range] { position: absolute; inset: 0; }
+  /* 命中区只覆盖刻度条本身，不覆盖上面的文字行——
+     否则点一下参数名就跳到极值，看着像"点坏了"。
+     注意 top:auto 必须写：上面那条通用规则留了 inset:0，top:0 会把它顶到胶囊顶部。 */
+  .cap > input[type=range] { position: absolute; top: auto; left: 0; right: 0; bottom: 0; height: 26px; }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%;
     background: transparent; cursor: ew-resize;

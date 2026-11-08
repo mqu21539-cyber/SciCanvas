@@ -6,6 +6,9 @@ import MagneticHoloButton from "../components/MagneticHoloButton";
 import MathFormula, { toLatex } from "../components/MathFormula";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8010";
+// 与 backend/shell/holo_shell.py 里的 SHELL_VERSION 保持一致。
+// 改了底座的可见行为就升版本号——旧实验会被丢弃，避免"修好了但页面还是老的"。
+const SHELL_STAMP = "scicanvas-shell v1.3.0";
 
 interface LabControl {
   id: string;
@@ -226,6 +229,11 @@ export default function SciCanvasApp() {
       if (!raw) return;
       const saved = JSON.parse(raw);
       if (!saved?.html) return;
+      // 底座有版本号：旧版本存下来的实验直接丢弃，否则"修好的 bug"会被旧产物复活。
+      if (!String(saved.html).includes(SHELL_STAMP)) {
+        localStorage.removeItem("scicanvas:last");
+        return;
+      }
       setHtmlCode(saved.html);
       setPlan(saved.plan ?? null);
       setPrompt(saved.prompt ?? "");
