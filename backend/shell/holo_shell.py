@@ -266,6 +266,7 @@ window.onerror = function(msg, url, line, col, error) {
           <button data-speed="0.15">0.1x</button>
           <button data-speed="1" class="on">1.0x</button>
           <button id="btnStep">+1帧</button>
+          <button id="btnMute" title="刻度棘轮音效开关">🔊</button>
         </div>
         <div class="scope">
           <span class="tag" id="scopeTag">LIVE SCOPE</span>
@@ -343,9 +344,35 @@ window.onerror = function(msg, url, line, col, error) {
     svg[name].innerHTML = html;
   }
 
-  var TIME_SCALE = 1, STEP_ONCE = false, HIGHLIGHT = null, RULERS = {}, GRAB = null;
+  var TIME_SCALE = 1, STEP_ONCE = false, HIGHLIGHT = null, RULERS = {}, GRAB = null, METRIC = {};
   // 每个参数一个重绘函数：外部改值（混沌注入/画布拖拽）后调它同步刻度尺
   // GRAB：当前被声明为「可在画布里抓握」的参数，模板通过 HOLO.bindDrag(key) 注册
+
+  // ---------------- 棘轮音效 ----------------
+  // 关键是**复用同一个 AudioContext**：文档里那个每次点击 new 一个的写法，
+  // 点到第 6 下就没声了（浏览器对 AudioContext 数量有上限）。
+  var AC = null, MUTED = false;
+  function getAC() {
+    if (MUTED) return null;
+    try {
+      if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+      if (AC.state === 'suspended') AC.resume();
+      return AC;
+    } catch (e) { return null; }
+  }
+  function click(freq, dur, gain) {
+    var ac = getAC();
+    if (!ac) return;
+    var t = ac.currentTime;
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(ac.destination);
+    o.start(t); o.stop(t + dur);
+  }
+  function ratchet() { click(1480, 0.022, 0.045); }
 
   function postToParent(msg) {
     try { if (window.parent && window.parent !== window) window.parent.postMessage(msg, '*'); } catch (e) {}
@@ -392,7 +419,20 @@ window.onerror = function(msg, url, line, col, error) {
     },
     metric: function(id, text) {
       var el = document.getElementById('m_' + id);
-      if (el) el.textContent = text;
+      if (!el) return;
+      // 数字滚动：把「49.5 m」拆成数字+尾巴，每帧缓动逼近目标值，
+      // 直接每帧写 textContent 会闪，直接跳变又生硬。
+      var m = String(text).match(/^(-?\d+(?:\.(\d+))?)([\s\S]*)$/);
+      if (!m) { el.textContent = text; METRIC[id] = null; return; }
+      var st = METRIC[id];
+      if (!st) {
+        METRIC[id] = { cur: parseFloat(m[1]), tgt: parseFloat(m[1]), dec: (m[2] || '').length, tail: m[3], el: el };
+        el.textContent = text;
+        return;
+      }
+      st.tgt = parseFloat(m[1]);
+      st.dec = (m[2] || '').length;
+      st.tail = m[3];
     },
     iso: function(x, y, z, ox, oy) {
       var rad = Math.PI / 6, OX = (ox === undefined ? 350 : ox), OY = (oy === undefined ? 240 : oy);
@@ -435,6 +475,9 @@ window.onerror = function(msg, url, line, col, error) {
     for (var i = 0; i < ticks.length; i++) {
       ticks[i].className = 'tk' + (i <= lit ? ' lit' : '') + (i % 4 === 0 ? ' major' : '');
     }
+    // 每跨过一格响一下（不是每像素都响），听起来才像棘轮
+    if (wrap._lit !== undefined && wrap._lit !== lit) ratchet();
+    wrap._lit = lit;
   }
 
   SPEC.controls.forEach(function(c){
@@ -614,6 +657,15 @@ window.onerror = function(msg, url, line, col, error) {
   document.getElementById('btnStep').addEventListener('click', function(){
     TIME_SCALE = 0; STEP_ONCE = true;
   });
+  var muteBtn = document.getElementById('btnMute');
+  if (muteBtn) {
+    muteBtn.addEventListener('click', function(){
+      MUTED = !MUTED;
+      muteBtn.textContent = MUTED ? '🔇' : '🔊';
+      muteBtn.classList.toggle('on', !MUTED);
+      if (!MUTED) ratchet();
+    });
+  }
 
   // ---------------- 滤镜 ----------------
   document.querySelectorAll('.dock button[data-theme]').forEach(function(btn){
@@ -666,6 +718,22 @@ window.onerror = function(msg, url, line, col, error) {
     var dt = raw * TIME_SCALE;
     if (STEP_ONCE) { dt = 1 / 60; STEP_ONCE = false; }
     T += dt;
+    // 遥测数字滚动：必须放在 dt 之后——放在前面会拿到上一帧的 undefined，
+    // 首帧直接把 cur 算成 NaN，指标卡全变 "NaN"。
+    for (var mk in METRIC) {
+      var ms = METRIC[mk];
+      if (!ms) continue;
+      var d = ms.tgt - ms.cur;
+      if (Math.abs(d) < 1e-4) {
+        if (ms.cur !== ms.tgt) {
+          ms.cur = ms.tgt;
+          ms.el.textContent = ms.cur.toFixed(ms.dec) + ms.tail;
+        }
+        continue;
+      }
+      ms.cur += d * Math.min(1, dt * 16);
+      ms.el.textContent = ms.cur.toFixed(ms.dec) + ms.tail;
+    }
     try {
       if (typeof window.frame === 'function') window.frame(dt, T);
       errCount = 0;                       // 跑通就清零，偶发错误不会累计

@@ -73,7 +73,19 @@ export default function HoloCockpit({
       />
 
       {/* 双 Agent 脉冲条 */}
-      <div className="relative z-20 flex items-center gap-2 px-3 py-1.5 border-b border-slate-800/80 bg-slate-950/60">
+      <div className="relative z-20 flex items-center gap-2 px-3 py-1.5 border-b border-slate-800/80 bg-slate-950/60 overflow-hidden">
+        {/* 能量流光：沿脉冲条持续游走，表示 Agent 之间在传数据 */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-0 w-1/3"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, rgba(56,189,248,.22), rgba(129,140,248,.12), transparent)",
+            animation: "scicanvas-beam-slide 3.4s linear infinite",
+            opacity: status === "IDLE" || status === "READY" ? 0.35 : 1,
+          }}
+        />
+        <style>{`@keyframes scicanvas-beam-slide { from { transform: translateX(-120%); } to { transform: translateX(420%); } }`}</style>
         <span className={chip(status === "PLANNING", "border-purple-400 text-purple-300")}>
           01.PLANNER
         </span>
