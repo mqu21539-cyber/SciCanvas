@@ -46,6 +46,8 @@ _JS = r"""
   }
 
   window.reset = function(){
+    // 直接抓握：在画布里上下拖动，等于拖动「lam」滑块
+    if (HOLO.bindDrag) HOLO.bindDrag('lam');
     S.t = 0;
     var g = '';
     for (var i = 0; i <= 10; i++) {

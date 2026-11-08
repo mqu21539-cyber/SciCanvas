@@ -53,7 +53,30 @@ await withChrome(async ({ newPage }) => {
         };
       });
       const deadSliders = caps.filter(c => c.k && c.hitK !== c.k);
-      return { canvas: !!c, painted, sampled, sliders, layers, metrics, badMetrics, numericMetrics, caps, deadSliders };
+      // 声明了画布抓握的实验：拖一下 SVG 实体层，必须真的有参数变化。
+      // 只检查 class 没用——曾经 bindDrag 注册失败，class 在、拖不动。
+      let dragged = null;
+      const stage = document.getElementById('stage');
+      const l1 = document.getElementById('l1');
+      if (stage && l1 && stage.classList.contains('grabbable') && window.HOLO) {
+        try {
+          const keys = Object.keys(HOLO.params());
+          const before = HOLO.params();
+          const r = l1.getBoundingClientRect();
+          const mk = (t, y, btn) => new PointerEvent(t, {
+            bubbles: true, cancelable: true, pointerId: 11, buttons: btn,
+            clientX: r.left + r.width / 2, clientY: y,
+          });
+          l1.dispatchEvent(mk('pointerdown', r.top + r.height * 0.9, 1));
+          l1.dispatchEvent(mk('pointermove', r.top + r.height * 0.1, 1));
+          l1.dispatchEvent(mk('pointerup', r.top + r.height * 0.1, 0));
+          const after = HOLO.params();
+          dragged = keys.some((k) => before[k] !== after[k]);
+        } catch (e) {
+          dragged = 'ERR: ' + (e && e.message);
+        }
+      }
+      return { canvas: !!c, painted, sampled, sliders, layers, metrics, badMetrics, numericMetrics, caps, deadSliders, dragged };
     })()`)
     const name = file.split(/[\\/]/).pop()
     const svgNodes = (info.layers || []).reduce((a, b) => a + Math.max(0, b), 0)
@@ -84,6 +107,9 @@ await withChrome(async ({ newPage }) => {
           ? `点不到 ${JSON.stringify(info.deadSliders)}`
           : `${info.caps.map((c) => c.k).join(' / ')}`
       )
+    }
+    if (info.dragged !== null) {
+      t.ok(`${name}: 画布内可拖动改参数`, info.dragged === true, String(info.dragged))
     }
   }
 })

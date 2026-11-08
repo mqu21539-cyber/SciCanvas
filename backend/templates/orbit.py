@@ -38,6 +38,8 @@ _JS = r"""
   }
 
   window.reset = function(){
+    // 直接抓握：在画布里上下拖动，等于拖动「mu」滑块
+    if (HOLO.bindDrag) HOLO.bindDrag('mu');
     start();
     var g = '<circle cx="' + CX + '" cy="' + CY + '" r="3" fill="rgba(56,189,248,.6)"/>';
     for (var rr = 40; rr <= 200; rr += 40) {

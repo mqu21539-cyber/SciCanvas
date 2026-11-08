@@ -85,6 +85,8 @@ _JS = r"""
   }
 
   window.reset = function(){
+    // 直接抓握：在画布里上下拖动，等于拖动「d」滑块
+    if (HOLO.bindDrag) HOLO.bindDrag('d');
     var p = pos();
     var g = '';
     for (var x = 50; x < 700; x += 50) g += '<line x1="' + x + '" y1="0" x2="' + x + '" y2="400" stroke="rgba(56,189,248,.05)"/>';

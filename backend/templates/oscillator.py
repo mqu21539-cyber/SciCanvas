@@ -80,6 +80,8 @@ _JS = r"""
   }
 
   window.reset = function(){
+    // 直接抓握：在画布里上下拖动，等于拖动「L」滑块
+    if (HOLO.bindDrag) HOLO.bindDrag('L');
     S.th = 0.55; S.om = 0; S.trail = []; S.t = 0;
     HOLO.L0(baseLayer());
     HOLO.L1(''); HOLO.L2(''); HOLO.L3('');

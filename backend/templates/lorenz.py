@@ -54,6 +54,8 @@ _JS = r"""
   }
 
   window.reset = function(){
+    // 直接抓握：在画布里上下拖动，等于拖动「rho」滑块
+    if (HOLO.bindDrag) HOLO.bindDrag('rho');
     A = { x: 0.1, y: 0, z: 20, trail: [] };
     B = { x: 0.1 + P.eps * 1e-4, y: 0, z: 20, trail: [] };
     t = 0; warm = 0;

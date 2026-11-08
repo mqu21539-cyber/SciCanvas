@@ -1,4 +1,4 @@
-fastapi==0.115.0
+﻿fastapi==0.115.0
 uvicorn[standard]==0.30.6
 openai==1.50.0
 # openai 1.50 会把 proxies 传给 httpx.Client；httpx>=0.28 已移除该参数，
@@ -6,3 +6,5 @@ openai==1.50.0
 httpx==0.27.2
 python-dotenv==1.0.1
 pydantic==2.9.2
+# PDF 正文抽取（arXiv /pdf/ 链接直读时用），纯 Python 无系统依赖
+pypdf==7.0.0

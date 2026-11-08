@@ -32,6 +32,8 @@ _JS = r"""
   function py(v){ return CY - v * SIDE; }
 
   window.reset = function(){
+    // 直接抓握：在画布里上下拖动，等于拖动「rate」滑块
+    if (HOLO.bindDrag) HOLO.bindDrag('rate');
     S.n = 0; S.hit = 0; S.pts = []; S.acc = 0;
     var g = '<rect x="' + CX + '" y="' + (CY - SIDE) + '" width="' + SIDE + '" height="' + SIDE +
       '" fill="none" stroke="rgba(148,163,184,.5)" stroke-width="1.4"/>';

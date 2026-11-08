@@ -52,6 +52,8 @@ _JS = r"""
   }
 
   window.reset = function(){
+    // 直接抓握：在画布里上下拖动，等于拖动「n」滑块
+    if (HOLO.bindDrag) HOLO.bindDrag('n');
     t = 0;
     var g = '<line x1="' + X0 + '" y1="' + MID + '" x2="' + X1 + '" y2="' + MID + '" stroke="rgba(56,189,248,.45)" stroke-width="1.4"/>';
     for (var i = 0; i <= 6; i++) {

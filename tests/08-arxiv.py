@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """08 · arXiv 摘要直读
 
 离线部分（编号识别）必过；联网部分（真抓论文 + 真生成）在断网时跳过，
@@ -35,6 +35,19 @@ for text, expect in CASES:
     ok = got == expect
     fail += 0 if ok else 1
     print(f"    {'PASS' if ok else 'FAIL'}  {text!r:40} -> {got}")
+
+# ---- PDF 正文直读（不调模型，只验抽取链路）----
+print("  PDF 正文抽取")
+try:
+    t0 = time.time()
+    expanded, paper = arxiv.expand("https://arxiv.org/pdf/1706.03762")
+    dt = time.time() - t0
+    chars = (paper or {}).get("fulltext_chars") or 0
+    ok = chars >= 2000 and "正文节选" in expanded
+    fail += 0 if ok else 1
+    print(f"    {'PASS' if ok else 'FAIL'}  {chars} 字 / {dt:.1f}s · 提示词 {len(expanded)} 字符")
+except Exception as e:  # noqa: BLE001
+    print(f"    SKIP  PDF 部分跳过（{type(e).__name__}）")
 
 # ---- 联网：真抓一篇 ----
 print("  抓取 + 生成")

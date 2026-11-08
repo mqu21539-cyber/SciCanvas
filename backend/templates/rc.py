@@ -34,6 +34,8 @@ _JS = r"""
   function toY(v){ return Y0 - (v / Math.max(0.1, P.V0)) * (Y0 - Y1); }
 
   window.reset = function(){
+    // 直接抓握：在画布里上下拖动，等于拖动「R」滑块
+    if (HOLO.bindDrag) HOLO.bindDrag('R');
     S.t = 0;
     var g = '';
     for (var k = 1; k <= SPAN_TAU; k++) {

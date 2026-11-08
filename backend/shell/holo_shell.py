@@ -326,11 +326,9 @@ window.onerror = function(msg, url, line, col, error) {
       return vals[k];
     },
     set: function(t, k, v){ vals[k] = v; return true; },
-    has: function(t, k){ return k in vals; },
-    ownKeys: function(){ return Object.keys(vals); },
-    getOwnPropertyDescriptor: function(t, k){
-      return { value: vals[k], enumerable: true, configurable: true, writable: true };
-    }
+    has: function(t, k){ return k in vals; }
+    // 不要给 ownKeys / getOwnPropertyDescriptor 加陷阱：target 是函数，
+    // 它有 prototype/length 这些不可配置属性，自定义 ownKeys 会违反不变量直接抛错。
   });
 
   var svg = {
@@ -444,6 +442,8 @@ window.onerror = function(msg, url, line, col, error) {
       return { u: OX + (x - y) * Math.cos(rad), v: OY + (x + y) * Math.sin(rad) - (z || 0) };
     },
     highlight: function(){ return HIGHLIGHT; },
+    // 当前全部参数快照（P 是 Proxy，不能直接 Object.keys 枚举）
+    params: function(){ var o = {}; for (var k in vals) o[k] = vals[k]; return o; },
     // 外部/画布内改参数：统一走这里，刻度尺与父窗口才会跟着动
     setP: function(key, value){
       P[key] = value;

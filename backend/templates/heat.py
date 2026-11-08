@@ -49,6 +49,8 @@ _JS = r"""
   }
 
   window.reset = function(){
+    // 直接抓握：在画布里上下拖动，等于拖动「alpha」滑块
+    if (HOLO.bindDrag) HOLO.bindDrag('alpha');
     resetField();
     var g = '<line x1="' + X0 + '" y1="' + BASE + '" x2="' + X1 + '" y2="' + BASE + '" stroke="#0284c7" stroke-width="2"/>' +
       '<line x1="' + X0 + '" y1="' + BASE + '" x2="' + X0 + '" y2="' + TOP + '" stroke="#0284c7" stroke-width="2"/>' +
