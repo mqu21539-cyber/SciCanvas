@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """09 · 全息契约（离线）
 
 验证「模型只写 50 行 JS」这条路的各种边界：合格片段能拼成完整页面，
@@ -8,7 +8,7 @@
 import os
 import sys
 
-BACKEND = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "A-自由生成", "backend")
+BACKEND = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend")
 sys.path.insert(0, BACKEND)
 
 import holo_build  # noqa: E402

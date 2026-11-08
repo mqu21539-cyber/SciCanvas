@@ -1,9 +1,9 @@
-/**
+﻿/**
  * 01 · 插件契约测试
  *
  * 用 dsh 自己的 defineTool 编译 schema、用 validateJsonSchemaValue 校验返回值，
  * 因此需要能解析 @deepseek-ai/dsh-tools（在 dsh profile 里跑，或把
- * A-自由生成/dsh-plugin-scicanvas/node_modules 指向 dsh 安装目录）。
+ * plugins/dsh-plugin-scicanvas/node_modules 指向 dsh 安装目录）。
  */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -12,7 +12,7 @@ import { pathToFileURL } from 'node:url'
 import { suite, skipped } from './lib/assert.mjs'
 import { ROOT, loadDshTools } from './lib/dsh-tools.mjs'
 
-const PLUGIN = path.join(ROOT, 'A-自由生成', 'dsh-plugin-scicanvas', 'index.js')
+const PLUGIN = path.join(ROOT, 'plugins', 'dsh-plugin-scicanvas', 'index.js')
 
 const loaded = await loadDshTools()
 if (!loaded) {
@@ -36,7 +36,7 @@ try {
   process.exit(
     skipped(
       `插件自身解析不到 @deepseek-ai/dsh-tools。在 dsh profile 内运行，或把 ` +
-        `A-自由生成\\dsh-plugin-scicanvas\\node_modules 软链到 dsh 的 node_modules。（${String(e.message).slice(0, 60)}）`
+        `\dsh-plugin-scicanvas\\node_modules 软链到 dsh 的 node_modules。（${String(e.message).slice(0, 60)}）`
     )
   )
 }

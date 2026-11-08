@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """模板：一维热传导（全息 2.5D 版）。"""
-import holo_shell
+from shell import holo_shell
 
 META = {
     "name": "heat",

@@ -34,7 +34,7 @@ dsh 的插件不是"npm 包 + cordis.yml + ctx.tool.register"，而是 **bundle*
 在本仓库任意会话里，让 dsh 执行：
 
 ```
-plugin_manager { action: "install_bundle", target: "D:\\SciCanvas\\A-自由生成\\dsh-plugin-scicanvas" }
+plugin_manager { action: "install_bundle", target: "D:\\SciCanvas\\\\dsh-plugin-scicanvas" }
 ```
 
 安装后到「设置 → 插件」里应能看到 **SciCanvas 互动实验室**（标题与描述来自 `locale/zh.json`）。

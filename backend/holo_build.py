@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """把 Coder 模型产出的「50 行 JS」拼进全息底座。
 
 这是路线 C 的关键一步：模型不再写 600 行 HTML，只写物理逻辑。
-底座（holo_shell.py，在 B 方案目录里）负责四层舞台、示波器、时间控制、滤镜、残影。
+底座（shell/holo_shell.py）负责四层舞台、示波器、时间控制、滤镜、残影。
 
 拼装前会做一次结构校验；不合格就抛 HoloError，调用方据此回落到"模型写整份 HTML"的老路。
 """
@@ -26,12 +26,8 @@ class HoloError(ValueError):
 
 
 def _holo_shell():
-    """惰性导入 B 方案目录里的底座（目录名含中文，必须用路径插入）。"""
-    here = os.path.dirname(os.path.abspath(__file__))
-    b_dir = os.path.normpath(os.path.join(here, "..", "..", "B-模板化生成"))
-    if b_dir not in sys.path:
-        sys.path.insert(0, b_dir)
-    import holo_shell  # noqa: PLC0415
+    """底座在 backend/shell/ 下，和本模块同一个包根，直接导入即可。"""
+    from shell import holo_shell  # noqa: PLC0415
 
     return holo_shell
 

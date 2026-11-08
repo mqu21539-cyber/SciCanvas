@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * tools/capture-interactions.mjs
  *
@@ -117,7 +117,7 @@ async function closeTab(tab) {
 
 // ---------------------------------------------------------------- 场景一：拖滑块
 async function sceneSlider() {
-  const file = path.join(ROOT, 'B-模板化生成', 'out', 'fourier.html')
+  const file = path.join(ROOT, 'backend', 'out', 'fourier.html')
   if (!fs.existsSync(file)) throw new Error('缺少 out/fourier.html，先跑 generator.py --template fourier')
 
   const { cdp, tab } = await openTab(pathToFileURL(file).href)
@@ -149,7 +149,7 @@ async function sceneSlider() {
 
 // ---------------------------------------------------------------- 场景二：自愈
 async function sceneSelfheal() {
-  const src = path.join(ROOT, 'B-模板化生成', 'out', 'oscillator.html')
+  const src = path.join(ROOT, 'backend', 'out', 'oscillator.html')
   if (!fs.existsSync(src)) throw new Error('缺少 out/oscillator.html')
   // 在 </body> 前插一段定时抛错的脚本：先让实验正常画出来，600ms 后再崩，
   // 这样 GIF 里能看清「先能跑 → 报错 → 自愈 → 又能跑」的完整过程。

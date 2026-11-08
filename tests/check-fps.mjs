@@ -1,7 +1,7 @@
-/** 临时：测某个实验室页面的渲染帧率。 */
+﻿/** 临时：测某个实验室页面的渲染帧率。 */
 import { findChrome, sleep, withChrome } from './lib/browser.mjs'
 
-const file = process.argv[2] || 'D:/SciCanvas/B-模板化生成/out/lorenz.html'
+const file = process.argv[2] || 'D:/SciCanvas/backend/out/lorenz.html'
 const seconds = Number(process.argv[3] || 2)
 
 if (!findChrome()) {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 03 · 模板渲染 + 真实浏览器验证
  *
  * 步骤：用 B 的 generator 渲染全部模板 → 逐个用 Chrome 打开 →
@@ -12,14 +12,14 @@ import { findChrome, sleep, withChrome } from './lib/browser.mjs'
 
 const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'))
 const ROOT = path.resolve(HERE, '..')
-const GEN_DIR = path.join(ROOT, 'B-模板化生成')
+const GEN_DIR = path.join(ROOT, 'backend')
 const OUT = path.join(GEN_DIR, 'out')
 
 if (!findChrome()) process.exit(skipped('未找到 Chrome/Edge（可设 CHROME_PATH）'))
 
 const PY =
   process.env.SCICANVAS_PYTHON ||
-  path.join(ROOT, 'A-自由生成', 'backend', '.venv', 'Scripts', 'python.exe')
+  path.join(ROOT, 'backend', '.venv', 'Scripts', 'python.exe')
 const python = fs.existsSync(PY) ? PY : 'python'
 
 const res = spawnSync(python, ['generator.py', '--list'], { cwd: GEN_DIR, encoding: 'utf-8' })

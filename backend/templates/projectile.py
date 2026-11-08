@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """模板：抛体运动（全息 2.5D 版）。"""
-import holo_shell
+from shell import holo_shell
 
 META = {
     "name": "projectile",

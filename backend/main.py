@@ -60,7 +60,7 @@ def api_health():
 
 @app.get("/api/templates")
 def api_templates():
-    """列出 B 方案可用模板（前端可据此做快捷入口）。"""
+    """列出可用模板（前端可据此做快捷入口）。"""
     return {"templates": router.template_catalog()}
 
 

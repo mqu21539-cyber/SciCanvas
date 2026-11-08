@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """SciCanvas 全息 2.5D 底座（Holo Shell）。
 
 设计目标：把「四层 Z 轴、示波器、子弹时间、四滤镜、残影、靶向锁定、运镜」
-这些交互做成**一次性写好的运行时**，模板作者（以及 A 方案的 Coder 模型）
+这些交互做成**一次性写好的运行时**，模板作者（以及双 Agent 的 Coder 模型）
 只需要填一个 `frame(dt)` 函数，约 50 行。
 
 这个文件同时被两条路线使用：
-  * B 方案（模板）：templates/*.py 只提供 META + JS
-  * A 方案（双 Agent）：后端把模型输出的 frame 逻辑拼进来
+  * 模板路径：templates/*.py 只提供 META + JS
+  * 双 Agent 路径：后端把模型输出的 frame 逻辑拼进来
 
 对外契约（模板里能用的东西）：
     HOLO.P                 当前参数对象

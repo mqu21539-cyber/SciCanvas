@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""混合路由：模板快路径（B）优先，双 Agent 慢路径（A）兜底。
+"""分流器：先试模板快路径，不命中再走双 Agent 现场生成。
 
-设计目标（对应 docs 里的 v0.2 架构）：
-    常见概念 ──► 问模型「属于哪个模板？」──命中──► B 渲染（约 4s，物理必然正确）
-                      └──────────未命中──────────► A 双 Agent（约 27s，任意概念）
+    常见概念 ──► 问模型「属于哪个模板？」──命中──► 模板渲染（约 1.5s，物理必然正确）
+                      └──────────未命中──────────► 双 Agent（约 17s，任意概念）
 
-模板库来自 ../B-模板化生成，路径可用 SCICANVAS_TEMPLATE_DIR 覆盖。
+两条路径产出同一种东西：单文件 HTML（全息底座 + reset/frame）。
+模板库就在本目录（generator.py + templates/），不再跨目录引用。
 """
 from __future__ import annotations
 
@@ -15,30 +15,26 @@ import sys
 import time
 from pathlib import Path
 
-import cache
 import arxiv
+import cache
 
-# backend/ -> A-自由生成/ -> 仓库根 -> B-模板化生成
-_DEFAULT_TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "B-模板化生成"
-TEMPLATE_DIR = Path(os.getenv("SCICANVAS_TEMPLATE_DIR", _DEFAULT_TEMPLATE_DIR))
+_HERE = Path(__file__).resolve().parent
 
 _bgen = None
 _load_error = None
 
 
 def template_lib():
-    """惰性加载 B 方案的生成器；目录不存在或依赖缺失时返回 None（路由自动降级）。"""
+    """惰性加载模板生成器；依赖缺失时返回 None（自动降级到双 Agent）。"""
     global _bgen, _load_error
     if _bgen is not None or _load_error is not None:
         return _bgen
     try:
-        if not (TEMPLATE_DIR / "generator.py").exists():
-            raise FileNotFoundError(f"未找到模板生成器：{TEMPLATE_DIR / 'generator.py'}")
-        if str(TEMPLATE_DIR) not in sys.path:
-            sys.path.insert(0, str(TEMPLATE_DIR))
-        import generator as bgen  # type: ignore
+        if str(_HERE) not in sys.path:
+            sys.path.insert(0, str(_HERE))
+        import generator  # 同目录，noqa: PLC0415
 
-        _bgen = bgen
+        _bgen = generator
     except Exception as e:  # noqa: BLE001
         _load_error = str(e)
         _bgen = None

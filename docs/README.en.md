@@ -4,9 +4,9 @@
 
 ### Turn Any Textbook Paragraph or Paper into a Playable 2D Lab
 
-⏱ **10 秒出科学蓝图 · 实测 25–30 秒出可玩沙盒**（双 Agent 串行生成，复杂概念略久）
+⏱ **模板命中 1.5 秒 · 双 Agent 现场生成 17 秒**（复杂概念略久）
 
-> 📁 本目录是 **A 方案（自由生成）**。另一条路线见 [`../B-模板化生成/`](../B-模板化生成/README.md)——约 4 秒出结果，但只覆盖已建模板的概念。
+> 一条流水线，两种策略：模板命中约 1.5 秒，未命中走双 Agent 约 17 秒。中文主 README 见 [`../README.md`](../README.md)。
 
 [![GitHub Stars](https://img.shields.io/github/stars/your-username/SciCanvas?style=flat)](https://github.com/your-username/SciCanvas/stargazers)
 [![DeepSeek Harness](https://img.shields.io/badge/powered%20by-DeepSeek%20Harness-4d6bfe)](https://github.com/deepseek-ai/deepseek-harness)
@@ -44,7 +44,7 @@ Reading static math formulas and dense arXiv papers is painful. Inspired by **3B
 
 ```bash
 git clone https://github.com/your-username/SciCanvas.git
-cd SciCanvas/A-自由生成/backend
+cd SciCanvas/backend
 pip install -r requirements.txt
 cp .env.example .env          # Windows: copy .env.example .env
 # Add your DEEPSEEK_API_KEY inside .env
@@ -91,7 +91,7 @@ Browser ──► Next.js studio (page.tsx)
 ## Use as a DeepSeek Harness (`dsh`) Plugin
 
 ```bash
-cd A-自由生成/dsh-plugin-scicanvas
+cd plugins/dsh-plugin-scicanvas
 npm install
 npm run build          # -> lib/index.js
 # then mount lib/ in your dsh workspace via cordis.yml

@@ -1,4 +1,4 @@
-# 回归测试
+﻿# 回归测试
 
 一条命令跑完全部可自动化的验证：
 
@@ -52,19 +52,19 @@ node tests/run-all.mjs --list
 node tools/probe-dsh-asar.mjs
 ```
 
-若插件自身解析不到依赖，01 会 SKIP 并提示——需要让 `A-自由生成/dsh-plugin-scicanvas/node_modules`
+若插件自身解析不到依赖，01 会 SKIP 并提示——需要让 `plugins/dsh-plugin-scicanvas/node_modules`
 指向 dsh 的 node_modules（或在 profile 内运行）：
 
 ```powershell
-New-Item -ItemType Junction -Path "A-自由生成\dsh-plugin-scicanvas\node_modules" `
+New-Item -ItemType Junction -Path "\dsh-plugin-scicanvas\node_modules" `
   -Target "C:\Users\<you>\AppData\Local\Programs\DeepSeek Harness\resources\app.asar.unpacked\dsh\node_modules"
 ```
 
 **后端 / 前端**：02–05 需要它们在线
 
 ```bash
-cd A-自由生成/backend && .venv/Scripts/python -m uvicorn main:app --port 8010
-cd A-自由生成/frontend && pnpm dev
+cd backend && .venv/Scripts/python -m uvicorn main:app --port 8010
+cd frontend && pnpm dev
 ```
 
 **真实 API Key**：02、04、05 会真的调 DeepSeek（合计约 3 次调用）。不想花钱就跑 `--fast`。

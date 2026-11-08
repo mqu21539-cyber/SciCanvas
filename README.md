@@ -33,7 +33,9 @@
 
 复现方法：`node tools/capture-interactions.mjs` 截帧 → `python tools/build-demo-gifs.py` 合成。
 
-本仓库同时存放**两条技术路线**——A 方案已实现可跑，B 方案是已验证思路的原型骨架。
+**一条流水线，两种生成策略**：先问模型「这个能用模板吗」，命中就套模板（1.5 s），
+没命中就让双 Agent 现场写（17 s）。两条路径的产品是同一种东西——单文件 HTML，
+里面是同一个全息底座。
 
 ---
 
@@ -59,27 +61,25 @@ holo_shell（写一次，所有实验共用）        模型 / 模板作者只�
    示波器 · 子弹时间 · 四套滤镜 · 自动运镜
 ```
 
-A 方案的 Coder 因此从"写 600 行 HTML"变成"写 50 行 JS"，端到端从 **25–30 s 降到 17 s**；
+双 Agent 路径的 Coder 因此从"写 600 行 HTML"变成"写 50 行 JS"，端到端从 **25–30 s 降到 17 s**；
 片段不合格（混进 HTML、漏了 `window.frame`、还在用 canvas……）会自动回落到老的整份生成。
-详细契约见 [`B-模板化生成/HOLO_TEMPLATE_GUIDE.md`](./B-模板化生成/HOLO_TEMPLATE_GUIDE.md)。
+详细契约见 [`docs/HOLO_TEMPLATE_GUIDE.md`](./docs/HOLO_TEMPLATE_GUIDE.md)。
 
 ---
 
-## 两条路线
+## 一条流水线，两种策略
 
-| | **A · 自由生成** ✅ 已实现 | **B · 模板化生成** 🧪 原型 |
+| | **模板路径**（快） | **双 Agent 路径**（万能） |
 | :--- | :--- | :--- |
-| **怎么做** | 双 Agent：Planner 拆解物理量 → Coder 直接写整份单文件 HTML | 预置参数化模板库；模型只输出「用哪个模板 + 参数 + 文案」 |
-| **模型输出量** | 约 6,900 tokens（500–700 行代码） | 约 300–500 tokens（一段 JSON） |
-| **实测耗时** | **25–30 秒**（5 次实测） | 目标 **10–15 秒** |
-| **覆盖面** | 任意概念，想生成什么就生成什么 | 10 类预置仿真（力学/波动/电磁/天体/混沌/数学/电路/热学/概率） |
-| **质量稳定性** | 取决于模型，需抽检物理正确性 | 模板内物理必然正确，不会跑偏 |
-| **可维护性** | 改 prompt 即改行为，难调试 | 改模板即改质量，可单元测试 |
-| **代码量** | 后端 + 前端 + 插件 + 展厅，完整产品 | 1 个生成器 + N 个模板 |
-| **适用场景** | 对外 Demo、冲 GitHub、任意概念 | 教学产品化、批量生成、离线部署 |
+| **怎么做** | 模型只判断「属于哪个模板」，物理代码是人写的 | Planner 拆物理量 → Coder 只写 ~50 行 `reset/frame` |
+| **模型输出量** | 约 400 tokens（一段 JSON） | 约 50 行 JS（原先要写 600 行 HTML） |
+| **实测耗时** | **1.5 s** | **17 s**（改造前 25–30 s） |
+| **覆盖面** | 10 类预置仿真 | 任意概念 |
+| **质量稳定性** | 模板内物理必然正确 | 取决于模型，有校验→重写→回落三层保护 |
+| **适用场景** | 高频概念、课堂演示 | 长尾概念、论文、冷门公式 |
 
-> **为什么两个都要**：A 负责"什么都能试"的惊艳感，B 负责"每次都对"的可靠性。
-> A 现在就能发布；B 是把 A 的随机性兜住的后手。
+两条路径产出的都是**同一种产物**（单文件 HTML + 全息底座），所以可以互相兜底：
+模板没命中就自动走 Agent，Agent 片段不合格就重写一次，还不行才回落到"模型写整份 HTML"。
 
 ---
 
@@ -87,32 +87,32 @@ A 方案的 Coder 因此从"写 600 行 HTML"变成"写 50 行 JS"，端到端�
 
 ```
 D:\SciCanvas\
-├── A-自由生成\                 ← 主方案，完整可运行
-│   ├── backend\                FastAPI + 双 Agent（Planner / Coder / Fixer）
-│   ├── frontend\               Next.js 15 工作台（进度条 / 沙盒 / 自愈 / 导出）
-│   ├── dsh-plugin-scicanvas\   DeepSeek Harness 插件
-│   ├── gallery\                免服务器静态展厅（4 个真实实验）
-│   ├── assets\                 README 演示素材
-│   ├── cordis.yml              插件挂载配置
-│   └── README.md               A 方案详细说明
-├── B-模板化生成\               ← 第二方案，原型
-│   ├── generator.py            plan(JSON) → 单文件 HTML
-│   ├── templates\              参数化模板库
-│   ├── examples\               示例 plan
-│   └── README.md               B 方案规格与用法
-├── docs\
-│   └── 技术可行性评估.md        实测数据、风险清单、成本、剩余工作量
-├── .github\workflows\          GitHub Pages 自动部署（指向 A 的 gallery）
-├── LICENSE  .gitignore  .gitattributes
-└── README.md                   本文件
+├── backend\                     FastAPI：分流 · 双 Agent · 模板 · 全息底座
+│   ├── main.py  router.py       API 入口与分流
+│   ├── agents.py                Planner / Coder / Fixer
+│   ├── holo_build.py            50 行 JS 的校验与拼装
+│   ├── generator.py             模板路径：JSON → 单文件 HTML（含 CLI）
+│   ├── shell/holo_shell.py      全息 2.5D 底座（四层 SVG / 示波器 / 滤镜 / 残影）
+│   ├── templates/               10 个参数化模板
+│   ├── cache.py  arxiv.py       结果缓存、arXiv 摘要直读
+│   └── smoke_test.py            离线冒烟（不需要 Key）
+├── frontend\                    Next.js 15 工作台（进度 / 沙盒 / 自愈 / 导出）
+├── gallery\                     免服务器静态展厅（5 个真实实验）
+├── plugins/dsh-plugin-scicanvas DeepSeek Harness 插件
+├── tools\                       截帧、合成 GIF、构建素材
+├── tests\                       10 个回归用例
+├── docs\                        技术可行性评估 · 执行清单 · 全息模板手册
+├── assets\                      README 素材
+├── cordis.yml                   插件挂载配置
+└── README.md                    本文件
 ```
 
 ---
 
-## 快速开始（A 方案）
+## 快速开始
 
 ```bash
-cd A-自由生成/backend
+cd backend
 pip install -r requirements.txt
 cp .env.example .env        # 填入 DEEPSEEK_API_KEY
 uvicorn main:app --reload --port 8010
@@ -122,27 +122,28 @@ uvicorn main:app --reload --port 8010
 > SSE 首帧要等 1–3 秒；同代码在 8002/8003/8010/8021 上首帧只要 2–7 毫秒。
 > 这与 uvicorn 的 `--http` 实现无关，换端口即可。
 >
-> 必须换回去时：改 `A-自由生成/frontend/src/app/page.tsx` 的 `API_BASE`、
+> 必须换回去时：改 `frontend/src/app/page.tsx` 的 `API_BASE`、
 > `backend/start|stop_backend.cmd` 的 `PORT`、`cordis.yml` 的 `backendUrl`，四处要一致。
 
 ```bash
-cd A-自由生成/frontend
+cd frontend
 npm install
 npm run dev                 # http://localhost:3000
 ```
 
-**不想装环境？** 直接双击 `A-自由生成/gallery/index.html`，5 个预生成实验立刻可玩；
-或运行 `A-自由生成/gallery/start_gallery.cmd` 起本地静态服务（推荐，manifest 才能正常加载）。
+**不想装环境？** 直接双击 `gallery/index.html`，5 个预生成实验立刻可玩；
+或运行 `gallery/start_gallery.cmd` 起本地静态服务（推荐，manifest 才能正常加载）。
 
 ---
 
-## 快速试玩（B 方案）
+## 只用模板，不开前端
 
 ```bash
-cd B-模板化生成
-python generator.py --list                                  # 看可用模板
-python generator.py --plan examples/plan-oscillator.json     # 模板 → HTML
-python generator.py --text "演示单摆阻尼振动" --out out/demo.html   # 调模型选模板
+cd backend
+python generator.py --list                                   # 看可用模板与参数区间
+python generator.py --plan examples/plan-oscillator.json      # plan(JSON) → HTML
+python generator.py --template fourier --out out/f.html        # 直接指定模板
+python generator.py --text "演示单摆阻尼振动" --out out/demo.html   # 让模型选模板
 ```
 
 ---
@@ -184,13 +185,13 @@ node tests/run-all.mjs --only 04
 
 | 模块 | 状态 |
 | :--- | :--- |
-| A · 双 Agent 生成 | ✅ 多次真实调用全部成功，产物可运行 |
-| A · 前端工作台 | ✅ 进度条 / 引擎徽标 / 先猜后试 / 双沙盒对比 |
-| A · 静态展厅 | ✅ 5 个实验（4 个由模型现场生成） |
-| A · 自愈闭环 | ✅ 真实 Chrome 端到端验证：报错 → /api/fix → 重渲染 |
-| A · dsh 插件 | ✅ 已安装进 desktop profile，生成即登记展厅 |
-| 混合路由 | ✅ 模板命中 1.3–2.1s，未命中回落 20–30s |
-| B · 生成器 + 模板 | ✅ 10 个模板，真实浏览器逐页验证 |
+| 双 Agent 生成 | ✅ 多次真实调用全部成功，产物可运行 |
+| 模板库 | ✅ 10 个模板，真实浏览器逐页验证，均 60 FPS |
+| 分流 | ✅ 模板命中 1.5 s，未命中回落 17 s |
+| 前端工作台 | ✅ 进度条 / 引擎徽标 / 先猜后试 / 双沙盒对比 / 全息座舱 |
+| 自愈闭环 | ✅ 真实 Chrome 端到端：报错 → /api/fix → 只改 JS → 重渲染 |
+| 静态展厅 | ✅ 5 个实验，全部全息版 |
+| dsh 插件 | ✅ 已安装进 desktop profile，生成即登记展厅 |
 
 细节与证据见 [技术可行性评估](docs/技术可行性评估.md)，开发进度见 [执行清单](docs/执行清单.md)。
 

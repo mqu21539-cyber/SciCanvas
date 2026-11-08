@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """模板：阻尼单摆（全息 2.5D 版）。
 
 作者只需要写 reset()/frame() 两个函数，其余（四层舞台、示波器、子弹时间、
@@ -7,7 +7,7 @@
 import os
 import sys
 
-import holo_shell
+from shell import holo_shell
 
 META = {
     "name": "oscillator",

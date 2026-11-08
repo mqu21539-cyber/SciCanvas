@@ -4,6 +4,37 @@
 
 ---
 
+## [1.0.0] — 2026-11-08
+
+### 重构 · 合并成单一结构，不再分 A / B
+以前仓库里并排放着 `A-自由生成/` 和 `B-模板化生成/`，还会互相伸手引用（A 通过 `sys.path`
+插入 B 的目录 import 生成器与底座）。对外解释成本高，新人 clone 下来也会以为要二选一。
+
+现在只有一棵树：
+
+```
+backend/          FastAPI · 双 Agent · 模板 · 全息底座（全部 Python 在这里）
+  ├ shell/holo_shell.py     四层 SVG 底座
+  ├ templates/              10 个模板
+  ├ generator.py            模板路径（JSON → HTML）
+  ├ agents.py / holo_build.py   双 Agent 路径
+  └ main.py / router.py / cache.py / arxiv.py
+frontend/  gallery/  plugins/dsh-plugin-scicanvas/  tools/  tests/  docs/  assets/
+```
+
+- **A / B 的说法全部去掉**，改叫「模板路径」与「双 Agent 路径」——它们是同一流水线的两种策略，
+  不是两个产品。
+- 跨目录 `sys.path` hack 全部删除：`router.py` 现在 `import generator` 即可，
+  `holo_build.py` 用 `from shell import holo_shell`。
+- 路径引用同步更新：10 个测试、截帧/合成脚本、GitHub Pages workflow、`.gitignore`、
+  启停脚本、插件配置、已安装 profile 的 junction 与 `outputDir`。
+- 文档重写：README 的「两条路线」改为「一条流水线，两种策略」，目录树重画；
+  英文长文移到 `docs/README.en.md`。
+
+**行为零变化**：合并后全量回归 10/10 通过。
+
+---
+
 ## [0.15.0] — 2026-11-08
 
 ### 变更 · 收尾四项
@@ -42,7 +73,7 @@
 ## [0.14.0] — 2026-11-05
 
 ### 修复 · 「生成了但是空的」
-用户实测发现：A 方案生成的沙盒整片空白、四个指标全是「—」，连着自愈两次也没救回来。
+用户实测发现：双 Agent 路径生成的沙盒整片空白、四个指标全是「—」，连着自愈两次也没救回来。
 定位到三个串在一起的问题：
 
 1. **`HOLO.P` 不能调用**。我对外暴露的是「对象式的 `HOLO.P.k`」+「函数式的 `HOLO.p('k')`」，
@@ -102,7 +133,7 @@
 - **10 个模板全部迁移到全息底座**：`oscillator / projectile / wave / efield / orbit / lorenz /
   fourier / rc / heat / montecarlo` 逐个用 `check-html` + `check-fps` 验过，
   **均为 60 FPS**（SVG 分层没有拖慢帧率）。
-- **A 方案 Coder 契约改造**：模型不再写 600 行 HTML，只写约 50 行的 `reset()/frame()`；
+- **双 Agent 路径 Coder 契约改造**：模型不再写 600 行 HTML，只写约 50 行的 `reset()/frame()`；
   后端 `holo_build.py` 负责校验（HTML 混入 / 缺 window.frame / 自带 rAF / 还在用 canvas /
   括号不平衡 / 过长过短）并拼进底座。不合格自动**回落**到老的整份 HTML 生成。
 - 新增 `tests/09-holo-contract.py`：离线验证契约的 16 种边界（含回落路径），不花 token。
@@ -110,7 +141,7 @@
 ### 实测
 | | 改造前 | 改造后 |
 | :--- | :--- | :--- |
-| A 方案端到端 | 25–30 s | **17.2 s** |
+| 双 Agent 路径端到端 | 25–30 s | **17.2 s** |
 | 产物结构 | 600+ 行 canvas | 50 行 JS + 四层 SVG 底座 |
 | 帧率 | 60 FPS | 60 FPS（10/10 模板） |
 
@@ -125,7 +156,7 @@
 ## [0.11.0] — 2026-11-05
 
 ### 新增 · 路线 C 第一步：全息 2.5D 底座
-- `B-模板化生成/holo_shell.py`：**四层 SVG 舞台**（L0 基准 / L1 实体 / L2 矢量 / L3 遥测）、
+- `backend/holo_shell.py`：**四层 SVG 舞台**（L0 基准 / L1 实体 / L2 矢量 / L3 遥测）、
   双通道荧光示波器、子弹时间（冻结 / 0.1x / +1帧）、四套光谱滤镜（全息 / 蓝图 / 热成像 / CRT）、
   平行宇宙残影（冻结当前画面染色品红）、参数靶向高亮、2.5D 拆解与自动运镜、`postMessage` 协议。
   模板作者从此只写 `reset()` + `frame()` 两个函数；`HOLO_TEMPLATE_GUIDE.md` 是作者手册。

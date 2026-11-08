@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * 一键回归：node tests/run-all.mjs [--fast] [--only 03] [--list]
  *
@@ -18,8 +18,8 @@ const ONLY = args.includes('--only') ? args[args.indexOf('--only') + 1] : null
 
 const PY_CANDIDATES = [
   process.env.SCICANVAS_PYTHON,
-  path.join(ROOT, 'A-自由生成', 'backend', '.venv', 'Scripts', 'python.exe'),
-  path.join(ROOT, 'A-自由生成', 'backend', '.venv', 'bin', 'python'),
+  path.join(ROOT, 'backend', '.venv', 'Scripts', 'python.exe'),
+  path.join(ROOT, 'backend', '.venv', 'bin', 'python'),
   'python',
 ]
 const PY = PY_CANDIDATES.find((p) => p === 'python' || (p && fs.existsSync(p))) || 'python'
@@ -30,7 +30,7 @@ const TESTS = [
     name: '后端冒烟（路由/校验/桩流水线）',
     cmd: PY,
     argv: ['smoke_test.py'],
-    cwd: path.join(ROOT, 'A-自由生成', 'backend'),
+    cwd: path.join(ROOT, 'backend'),
     slow: false,
   },
   { id: '01', name: '插件契约（dsh defineTool）', cmd: 'node', file: '01-plugin-contract.mjs', slow: false },
@@ -59,7 +59,7 @@ if (!selected.length) {
 const chrome = findChrome()
 const svc = await probeServices()
 const dshTools = fs.existsSync(path.join(ROOT, '.probe', 'probe', 'node_modules', '@deepseek-ai', 'dsh-tools'))
-const venvOk = fs.existsSync(path.join(ROOT, 'A-自由生成', 'backend', '.venv'))
+const venvOk = fs.existsSync(path.join(ROOT, 'backend', '.venv'))
 
 console.log('\nSciCanvas 回归测试')
 console.log('='.repeat(56))

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * tools/capture-frames.mjs
  *
@@ -36,12 +36,12 @@ const GAP_MS = Number(process.env.FRAME_GAP_MS || 260)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const LABS = [
-  ['lorenz', 'B-模板化生成/out/lorenz.html'],
-  ['wave', 'B-模板化生成/out/wave.html'],
-  ['efield', 'B-模板化生成/out/efield.html'],
-  ['orbit', 'B-模板化生成/out/orbit.html'],
-  ['projectile', 'B-模板化生成/out/projectile.html'],
-  ['doppler', 'A-自由生成/gallery/labs/doppler-agentic.html'],
+  ['lorenz', 'backend/out/lorenz.html'],
+  ['wave', 'backend/out/wave.html'],
+  ['efield', 'backend/out/efield.html'],
+  ['orbit', 'backend/out/orbit.html'],
+  ['projectile', 'backend/out/projectile.html'],
+  ['doppler', 'gallery/labs/doppler-agentic.html'],
 ]
 
 class CDP {

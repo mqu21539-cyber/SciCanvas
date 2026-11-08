@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
-"""SciCanvas B 方案：模板化生成器。
+﻿# -*- coding: utf-8 -*-
+"""SciCanvas 模板生成器：plan(JSON) → 单文件 HTML。
 
-与 A 方案（让模型直接写 500 行 HTML）相反，这里模型只输出一小段 JSON：
+模型只输出一小段 JSON：
     选哪个模板 + 参数取值 + 标题/副标题/公式/挑战题
 
 HTML 由模板渲染，因此：
@@ -155,7 +155,7 @@ def plan_from_text(text: str) -> dict:
     load_dotenv(os.path.join(TEMPLATE_DIR, ".env"))
     api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
     if not api_key:
-        raise SystemExit("缺少 DEEPSEEK_API_KEY（可写在 B-模板化生成/.env 里）")
+        raise SystemExit("缺少 DEEPSEEK_API_KEY（可写在 backend/.env 里）")
 
     client = OpenAI(
         api_key=api_key,
@@ -181,7 +181,7 @@ def plan_from_text(text: str) -> dict:
 
 # --------------------------------------------------------------------- CLI
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="SciCanvas B 方案：模板化生成器")
+    ap = argparse.ArgumentParser(description="SciCanvas 模板生成器")
     ap.add_argument("--list", action="store_true", help="列出可用模板")
     ap.add_argument("--plan", help="从 JSON 文件读取 plan")
     ap.add_argument("--text", help="自然语言概念，调用模型选模板（需 API Key）")

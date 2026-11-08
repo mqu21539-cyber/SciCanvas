@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
-"""B 方案模板库。
+﻿# -*- coding: utf-8 -*-
+"""模板库。
 
 每个模板模块暴露：
     META = {name, title, category, formula, controls[], metrics[]}

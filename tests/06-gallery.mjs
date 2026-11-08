@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 06 · 展厅清单一致性
  *
  * 插件会把新实验自动登记进 manifest.json，所以这里守住两件事：
@@ -10,7 +10,7 @@ import path from 'node:path'
 import { suite } from './lib/assert.mjs'
 import { ROOT } from './lib/dsh-tools.mjs'
 
-const GALLERY = path.join(ROOT, 'A-自由生成', 'gallery')
+const GALLERY = path.join(ROOT, 'gallery')
 const MANIFEST = path.join(GALLERY, 'manifest.json')
 
 const t = suite('06 · 展厅清单一致性')

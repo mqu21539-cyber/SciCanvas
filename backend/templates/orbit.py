@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """模板：引力轨道（全息 2.5D 版）。"""
-import holo_shell
+from shell import holo_shell
 
 META = {
     "name": "orbit",

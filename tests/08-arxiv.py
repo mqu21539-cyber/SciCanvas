@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """08 · arXiv 摘要直读
 
 离线部分（编号识别）必过；联网部分（真抓论文 + 真生成）在断网时跳过，
@@ -10,7 +10,7 @@ import time
 import httpx
 
 API = "http://127.0.0.1:8010"
-BACKEND = r"D:\SciCanvas\A-自由生成\backend"
+BACKEND = r"D:\SciCanvas\backend"
 
 sys.path.insert(0, BACKEND)
 try:

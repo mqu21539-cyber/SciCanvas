@@ -1,7 +1,7 @@
-# B · 模板化生成（原型）
+﻿# 模板库
 
-> 与 `A-自由生成` 并列的第二条技术路线。
-> **A 负责"什么都能试"，B 负责"每次都对"。**
+> SciCanvas 的快路径：常见概念直接套模板，**1.5 秒**出结果，物理正确性由模板保证。
+> 没命中模板才回落到双 Agent 现场生成。
 
 ---
 
@@ -14,13 +14,13 @@
                  {"template": "projectile", "params": {"k": 0.3}, "title": …}
 ```
 
-对比 A 方案让模型直接写 500–700 行代码，`token` 量下降一个数量级，且**物理正确性由模板作者保证，模型编不出错误公式**。
+对比双 Agent 让模型现场写 50 行 JS，模板路径的 token 量再降一个数量级，且**物理正确性由模板作者保证，模型编不出错误公式**。
 
 ---
 
 ## 实测（同一台机器，同一个 Key，2026-11-05）
 
-| | A · 自由生成 | B · 模板化 |
+| | 双 Agent | 模板 |
 | :--- | :--- | :--- |
 | 模型输出 tokens | 约 6,900 | **96** |
 | 输入 tokens | 约 1,400 | **405** |
@@ -36,7 +36,7 @@
 ## 目录
 
 ```
-B-模板化生成/
+backend/
 ├── generator.py            外壳 + 渲染 + 模型选模板 + CLI
 ├── templates/
 │   ├── __init__.py         模板注册表 + 控件/指标 HTML 生成
@@ -78,7 +78,7 @@ B-模板化生成/
 ## 用法
 
 ```bash
-cd B-模板化生成
+cd backend
 
 # 1. 看有哪些模板和参数区间
 python generator.py --list
@@ -134,7 +134,7 @@ def build(params, copy):
 
 ## 混合路由（已接进 A 的后端）
 
-`A-自由生成/backend/router.py` 实现了「模板优先、Agent 兜底」：
+`backend/router.py` 实现了「模板优先、Agent 兜底」：
 
 ```
 用户输入 ──► 分诊（~1s）──命中──► B 渲染（立即）──► 总耗时约 1.3s
@@ -175,5 +175,5 @@ def build(params, copy):
    └─► 未命中 ──► 回落到 A 的双 Agent（30 秒，任意概念）
 ```
 
-实现位置：`A-自由生成/backend/router.py`（`strategy=auto|template|agent`）。
+实现位置：`backend/router.py`（`strategy=auto|template|agent`）。
 分诊 prompt 的判定标准是**从严**的：只有核心物理模型一致才算命中，避免"看起来相关"的误判。
