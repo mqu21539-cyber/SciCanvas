@@ -138,7 +138,8 @@ async function main() {
       )
       if (ready) break
     }
-    await sleep(900)
+    // 多等一会儿：全息底座的轨迹/波形是逐步累积的，截早了只有一小段线
+    await sleep(Number(process.env.FRAME_WARMUP_MS || 2600))
 
     for (let n = 0; n < FRAMES_PER_LAB; n++) {
       const shot = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })

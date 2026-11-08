@@ -3,678 +3,732 @@
 <head>
 <script>
 window.onerror = function(msg, url, line, col, error) {
-  window.parent.postMessage({ type: 'SCICANVAS_ERROR', message: msg, line: line }, '*');
+  try {
+    window.parent.postMessage({ type: 'SCICANVAS_ERROR', message: String(msg), line: line }, '*');
+  } catch (e) {}
+  return false;
 };
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>弹簧振子简谐运动</title>
-<script src="https://cdn.tailwindcss.com"></script>
 <style>
-  html,body{height:100%;}
-  body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
-  input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:9999px;background:#1e293b;outline:none;}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:#38bdf8;box-shadow:0 0 10px #38bdf8;cursor:pointer;border:2px solid #0f172a;}
-  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#38bdf8;box-shadow:0 0 10px #38bdf8;cursor:pointer;border:2px solid #0f172a;}
-  .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
-  ::-webkit-scrollbar{width:8px;height:8px;}
-  ::-webkit-scrollbar-thumb{background:#334155;border-radius:4px;}
-  ::-webkit-scrollbar-track{background:#0f172a;}
+  :root {
+    --mx: 50%; --my: 40%;
+    --z-gap: 44px;
+    --cyan: #38bdf8;
+    --magenta: #f43f5e;
+    --emerald: #10b981;
+    --amber: #f59e0b;
+    --ink: #030712;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--ink);
+    color: #e2e8f0;
+    font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, monospace;
+    overflow: hidden;
+  }
+  .ws {
+    position: relative; width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    background-image: radial-gradient(620px circle at var(--mx) var(--my), rgba(56,189,248,0.13), transparent 46%);
+    transition: background-color .35s ease, filter .35s ease;
+  }
+  .ws::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background-image:
+      linear-gradient(to right, rgba(56,189,248,0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(56,189,248,0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse at 50% 40%, #000 30%, transparent 80%);
+  }
+
+  /* ---------- 多光谱滤镜 ---------- */
+  .ws[data-theme="blueprint"] { background-color: #0a2540; --cyan: #ffffff; }
+  .ws[data-theme="blueprint"]::before {
+    background-image:
+      linear-gradient(to right, rgba(255,255,255,0.16) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,0.16) 1px, transparent 1px);
+  }
+  .ws[data-theme="thermal"] { filter: hue-rotate(195deg) saturate(2.5) contrast(1.12); }
+  .ws[data-theme="amber"] { background-color: #0c0800; filter: sepia(1) hue-rotate(-15deg) saturate(3) contrast(1.1); }
+  .ws[data-theme="amber"]::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 80;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,.26), rgba(0,0,0,.26) 1px, transparent 1px, transparent 3px);
+  }
+
+  /* ---------- 顶栏 ---------- */
+  header {
+    position: relative; z-index: 30; flex: none;
+    display: flex; align-items: baseline; gap: 14px;
+    padding: 12px 18px; border-bottom: 1px solid rgba(56,189,248,.18);
+    background: rgba(2,6,23,.72); backdrop-filter: blur(8px);
+  }
+  header h1 { font-size: 15px; letter-spacing: .04em; color: var(--cyan); font-weight: 700; }
+  header .sub { font-size: 11px; color: #64748b; }
+  header .law {
+    margin-left: auto; font-size: 12px; color: #86efac;
+    border: 1px solid rgba(16,185,129,.3); background: rgba(16,185,129,.07);
+    padding: 4px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46%;
+  }
+
+  /* ---------- 主体 ---------- */
+  main { position: relative; z-index: 10; flex: 1; display: flex; min-height: 0; }
+  aside {
+    width: 256px; flex: none; padding: 12px;
+    border-right: 1px solid rgba(56,189,248,.14);
+    background: rgba(2,6,23,.55); overflow-y: auto;
+  }
+  aside::-webkit-scrollbar { width: 6px; }
+  aside::-webkit-scrollbar-thumb { background: rgba(56,189,248,.25); }
+  .sec-title {
+    font-size: 10px; letter-spacing: .12em; color: #475569;
+    margin: 6px 0 8px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .cap { border: 1px solid rgba(56,189,248,.18); background: rgba(2,6,23,.6); padding: 7px 9px; margin-bottom: 7px; transition: border-color .15s, box-shadow .15s; }
+  .cap.on { border-color: var(--cyan); box-shadow: 0 0 14px rgba(56,189,248,.25) inset; }
+  .cap .row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-bottom: 5px; }
+  .cap .nm { color: #bae6fd; }
+  .cap .vl { color: var(--cyan); background: rgba(56,189,248,.12); border: 1px solid rgba(56,189,248,.25); padding: 1px 6px; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+    border-radius: 2px; background: #1e293b; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--cyan); box-shadow: 0 0 9px var(--cyan); cursor: pointer;
+  }
+  .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+  .metric { border: 1px solid rgba(56,189,248,.15); background: rgba(2,6,23,.6); padding: 6px 8px; }
+  .metric .k { font-size: 9px; color: #64748b; }
+  .metric .v { font-size: 12px; color: #bae6fd; margin-top: 2px; }
+
+  /* ---------- 舞台 ---------- */
+  .stage-wrap { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage-area { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; perspective: 1200px; }
+  .stage {
+    position: relative; width: 92%; height: 88%; transform-style: preserve-3d;
+    transition: transform .18s ease-out;
+  }
+  .layer {
+    position: absolute; inset: 0; transition: transform .5s cubic-bezier(.22,1,.36,1), opacity .2s, border-color .25s, background-color .25s;
+    border: 1px solid transparent; pointer-events: none;
+  }
+  .layer svg { width: 100%; height: 100%; overflow: visible; display: block; }
+  .stage.is3d .layer { pointer-events: auto; border-color: rgba(56,189,248,.3); background: rgba(15,23,42,.22); }
+  .stage.is3d .L0 { transform: translateZ(0); }
+  .stage.is3d .L1 { transform: translateZ(calc(var(--z-gap) * 1)); filter: drop-shadow(-10px 16px 8px rgba(0,0,0,.6)); }
+  .stage.is3d .ghostly { transform: translateZ(calc(var(--z-gap) * 1.4)); }
+  .stage.is3d .L2 { transform: translateZ(calc(var(--z-gap) * 2)); }
+  .stage.is3d .L3 { transform: translateZ(calc(var(--z-gap) * 3)); }
+
+  /* 平行宇宙残影：把当前画面染成品红并半透明压在实体下面 */
+  .layer.ghostly { display: none; opacity: .42; filter: hue-rotate(285deg) saturate(2.2); }
+  .layer.ghostly.on { display: block; pointer-events: none; }
+  .layer.ghostly svg { position: absolute; inset: 0; }
+  .stage.is3d .layer:hover {
+    opacity: 1; border-color: var(--cyan); background: rgba(14,165,233,.06);
+  }
+  .stage.is3d:hover .layer { opacity: .3; }
+  .stage.is3d .layer:hover::after {
+    content: attr(data-label); position: absolute; top: -22px; left: -1px;
+    background: var(--cyan); color: #030712; font-size: 10px; font-weight: 700; padding: 2px 8px;
+  }
+  .badge {
+    position: absolute; top: 8px; left: 10px; z-index: 40; font-size: 10px; color: #7dd3fc;
+    background: rgba(2,6,23,.8); border: 1px solid rgba(56,189,248,.3); padding: 3px 9px;
+  }
+  .hud {
+    position: absolute; top: 8px; right: 10px; z-index: 40; display: flex; gap: 6px;
+  }
+  .hud button, .dock button {
+    font-family: inherit; font-size: 10px; cursor: pointer;
+    background: rgba(14,165,233,.14); border: 1px solid rgba(56,189,248,.45);
+    color: #e0f2fe; padding: 4px 9px; transition: .15s;
+  }
+  .hud button:hover, .dock button:hover, .hud button.on, .dock button.on {
+    background: var(--cyan); color: #030712; font-weight: 700;
+  }
+  .hud button.ghost { border-color: var(--magenta); color: #fda4af; background: rgba(244,63,94,.14); }
+  .hud button.ghost.on { background: var(--magenta); color: #fff; }
+
+  /* ---------- 底部扩展坞 ---------- */
+  .dock {
+    flex: none; display: flex; align-items: center; gap: 10px;
+    padding: 7px 12px; border-top: 1px solid rgba(56,189,248,.18);
+    background: rgba(2,6,23,.8); backdrop-filter: blur(10px);
+  }
+  .dock .grp { display: flex; align-items: center; gap: 5px; }
+  .dock .lbl { font-size: 9px; color: #475569; letter-spacing: .08em; margin-right: 2px; }
+  .scope { position: relative; flex: 1; min-width: 120px; height: 46px; background: rgba(2,6,23,.9); border: 1px solid rgba(56,189,248,.22); }
+  .scope canvas { display: block; width: 100%; height: 100%; }
+  .scope .tag { position: absolute; top: 1px; left: 5px; font-size: 8px; color: rgba(148,163,184,.7); pointer-events: none; }
 </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen">
-<div class="max-w-[1500px] mx-auto p-4 lg:p-6">
-  <!-- Header -->
-  <header class="mb-4 flex flex-col md:flex-row md:items-end md:justify-between gap-2">
-    <div>
-      <h1 class="text-2xl lg:text-3xl font-bold tracking-tight bg-gradient-to-r from-sky-400 via-purple-400 to-amber-300 bg-clip-text text-transparent">弹簧振子简谐运动</h1>
-      <p class="text-slate-400 text-sm mt-1">质量越大，振子越“懒”，周期越长——但只按平方根变慢。</p>
-    </div>
-    <div class="text-xs text-slate-500 mono bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2">
-      T = 2π √(m / k)
-    </div>
+<body>
+<div class="ws" id="ws" data-theme="holo">
+  <header>
+    <h1>弹簧振子简谐运动</h1>
+    <span class="sub">质量越大周期越长，弹簧越硬周期越短</span>
+    <span class="law" title="T = 2 * pi * sqrt(m / k)">T = 2 * pi * sqrt(m / k)</span>
   </header>
 
-  <div class="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4">
-    <!-- Canvas area -->
-    <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 relative overflow-hidden">
-      <div class="absolute top-3 left-3 z-10 text-[11px] mono leading-5 pointer-events-none">
-        <div class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 backdrop-blur">
-          <div class="text-slate-400">实时数据</div>
-          <div>x = <span id="mX" class="text-sky-400">0.000</span> m</div>
-          <div>v = <span id="mV" class="text-amber-400">0.000</span> m/s</div>
-          <div>T = <span id="mT" class="text-purple-400">0.000</span> s</div>
-        </div>
-      </div>
-      <div class="absolute top-3 right-3 z-10 text-[11px] mono leading-5 pointer-events-none">
-        <div class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 backdrop-blur text-right">
-          <div class="text-slate-400">理论值</div>
-          <div>T_theory = <span id="mTt" class="text-purple-400">0.000</span> s</div>
-          <div>f = <span id="mF" class="text-emerald-400">0.000</span> Hz</div>
-        </div>
-      </div>
-      <canvas id="cv" class="w-full block rounded-lg" style="height:min(62vh,560px);"></canvas>
-    </div>
+  <main>
+    <aside id="panel">
+      <div class="sec-title"><span>// PARAM CAPSULES</span><span id="chaosTag"></span></div>
+      <div id="capsules"></div>
+      <div class="sec-title" style="margin-top:14px">// TELEMETRY</div>
+      <div class="metrics" id="metrics"></div>
+    </aside>
 
-    <!-- Control panel -->
-    <div class="flex flex-col gap-4">
-      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-sm font-semibold text-slate-200 tracking-wide">控制面板</h2>
-          <div class="flex gap-2">
-            <button id="btnPause" class="text-xs px-3 py-1.5 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 hover:bg-sky-500/30 transition">暂停</button>
-            <button id="btnReset" class="text-xs px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30 transition">重置</button>
-          </div>
+    <section class="stage-wrap">
+      <div class="stage-area">
+        <div class="badge" id="badge">2D ORTHOGRAPHIC VIEW</div>
+        <div class="hud">
+          <button id="btn3d">❖ 2.5D 拆解</button>
+          <button id="btnGhost" class="ghost">👻 锁定残影</button>
+          <button id="btnCinema">🎬 运镜</button>
         </div>
-
-        <div class="space-y-4">
-          <div>
-            <div class="flex justify-between text-xs mb-1">
-              <span class="text-slate-300">劲度系数 k (N/m)</span>
-              <span id="valK" class="mono text-sky-400">5.0</span>
-            </div>
-            <input id="k" type="range" min="0.5" max="20" step="0.1" value="5" class="w-full">
-            <p class="text-[11px] text-slate-500 mt-1 leading-snug">增大 k 时，弹簧更“硬”，振子振动更快，周期变短，位移-时间曲线变得更密集。</p>
+        <div class="stage" id="stage">
+          <div class="layer L0" data-label="L0 // 坐标基准"><svg id="l0" viewBox="0 0 700 400" preserveAspectRatio="xMidYMid meet"></svg></div>
+          <div class="layer L1" data-label="L1 // 物理实体"><svg id="l1" viewBox="0 0 700 400" preserveAspectRatio="xMidYMid meet"></svg></div>
+          <div class="layer ghostly" id="ghostLayer" data-label="L1-γ // 平行残影">
+            <svg id="g1" viewBox="0 0 700 400" preserveAspectRatio="xMidYMid meet"></svg>
+            <svg id="g2" viewBox="0 0 700 400" preserveAspectRatio="xMidYMid meet"></svg>
           </div>
-          <div>
-            <div class="flex justify-between text-xs mb-1">
-              <span class="text-slate-300">质量 m (kg)</span>
-              <span id="valM" class="mono text-amber-400">1.0</span>
-            </div>
-            <input id="m" type="range" min="0.5" max="10" step="0.1" value="1" class="w-full">
-            <p class="text-[11px] text-slate-500 mt-1 leading-snug">增大 m 时，振子惯性更大，振动更慢，周期变长，位移-时间曲线变得更稀疏。</p>
-          </div>
-          <div>
-            <div class="flex justify-between text-xs mb-1">
-              <span class="text-slate-300">初始振幅 A (m)</span>
-              <span id="valA" class="mono text-purple-400">1.00</span>
-            </div>
-            <input id="A" type="range" min="0.1" max="2" step="0.05" value="1" class="w-full">
-            <p class="text-[11px] text-slate-500 mt-1 leading-snug">改变振幅只影响位移-时间曲线的上下幅度，不改变周期；振子最大位移和速度相应变化。</p>
-          </div>
+          <div class="layer L2" data-label="L2 // 矢量与尾迹"><svg id="l2" viewBox="0 0 700 400" preserveAspectRatio="xMidYMid meet"></svg></div>
+          <div class="layer L3" data-label="L3 // 遥测 HUD"><svg id="l3" viewBox="0 0 700 400" preserveAspectRatio="xMidYMid meet"></svg></div>
         </div>
       </div>
 
-      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-        <h2 class="text-sm font-semibold text-slate-200 mb-2 tracking-wide">直觉挑战</h2>
-        <p class="text-[12px] text-slate-400 leading-relaxed">把质量滑块从 1 kg 调到 2 kg，周期会变成原来的 2 倍吗？拖动滑块，观察周期数值和位移-时间曲线的变化！</p>
-        <div class="mt-3 grid grid-cols-2 gap-2 text-[11px] mono">
-          <div class="bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5">
-            <div class="text-slate-500">m=1 → T</div>
-            <div id="cmp1" class="text-sky-400">—</div>
-          </div>
-          <div class="bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5">
-            <div class="text-slate-500">m=2 → T</div>
-            <div id="cmp2" class="text-amber-400">—</div>
-          </div>
+      <div class="dock">
+        <div class="grp">
+          <button data-speed="0">⏸ 冻结</button>
+          <button data-speed="0.15">0.1x</button>
+          <button data-speed="1" class="on">1.0x</button>
+          <button id="btnStep">+1帧</button>
         </div>
-        <div class="mt-2 text-[11px] text-slate-500">比值 T(2)/T(1) = <span id="cmpR" class="text-emerald-400 mono">—</span>（理论 √2 ≈ 1.414）</div>
-      </div>
-
-      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-        <h2 class="text-sm font-semibold text-slate-200 mb-2 tracking-wide">图例</h2>
-        <div class="grid grid-cols-2 gap-y-1.5 text-[11px]">
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-sm" style="background:#64748b"></span><span class="text-slate-400">弹簧</span></div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-sm" style="background:#38bdf8"></span><span class="text-slate-400">质量块</span></div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background:#fbbf24"></span><span class="text-slate-400">发光粒子</span></div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-sm" style="background:#f43f5e"></span><span class="text-slate-400">恢复力 F</span></div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-sm" style="background:#a855f7"></span><span class="text-slate-400">x-t 曲线</span></div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-sm" style="background:#e2e8f0"></span><span class="text-slate-400">游标线</span></div>
+        <div class="scope">
+          <span class="tag" id="scopeTag">LIVE SCOPE</span>
+          <canvas id="scope" width="360" height="46"></canvas>
+        </div>
+        <div class="grp">
+          <span class="lbl">OPTICS</span>
+          <button data-theme="holo" class="on">全息</button>
+          <button data-theme="blueprint">蓝图</button>
+          <button data-theme="thermal">热成像</button>
+          <button data-theme="amber">CRT</button>
         </div>
       </div>
-    </div>
-  </div>
+    </section>
+  </main>
 </div>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+  <radialGradient id="sphere-cyan" cx="32%" cy="30%" r="68%">
+    <stop offset="0%" stop-color="#e0f2fe"/><stop offset="35%" stop-color="#38bdf8"/>
+    <stop offset="80%" stop-color="#0369a1"/><stop offset="100%" stop-color="#082f49"/>
+  </radialGradient>
+  <radialGradient id="sphere-amber" cx="32%" cy="30%" r="68%">
+    <stop offset="0%" stop-color="#fef3c7"/><stop offset="35%" stop-color="#f59e0b"/>
+    <stop offset="85%" stop-color="#78350f"/><stop offset="100%" stop-color="#451a03"/>
+  </radialGradient>
+  <linearGradient id="block-3d" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#7dd3fc"/><stop offset="50%" stop-color="#0284c7"/><stop offset="100%" stop-color="#0c4a6e"/>
+  </linearGradient>
+  <filter id="neon-glow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <marker id="ar-cyan" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="#38bdf8"/></marker>
+  <marker id="ar-amber" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="#f59e0b"/></marker>
+  <marker id="ar-magenta" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="#f43f5e"/></marker>
+</defs></svg>
 
 <script>
 (function(){
-  const cv = document.getElementById('cv');
-  const ctx = cv.getContext('2d');
+  'use strict';
+  var SPEC = {"controls": [{"id": "m", "label": "质量", "unit": "kg", "min": 0.5, "max": 5.0, "step": 0.1, "default": 1.0}, {"id": "k", "label": "劲度系数", "unit": "N/m", "min": 5.0, "max": 50.0, "step": 1.0, "default": 20.0}, {"id": "A", "label": "初始振幅", "unit": "m", "min": 0.2, "max": 1.5, "step": 0.1, "default": 1.0}, {"id": "damping", "label": "阻尼系数", "unit": "kg/s", "min": 0.0, "max": 2.0, "step": 0.1, "default": 0.0}], "metrics": [{"id": "x", "label": "位移"}, {"id": "v", "label": "速度"}, {"id": "a", "label": "加速度"}, {"id": "T", "label": "周期"}]};
 
-  // State
-  const state = {
-    k: 5.0,
-    m: 1.0,
-    A: 1.0,
-    t: 0,
-    paused: false,
-    // physics
-    x: 1.0,
-    v: 0,
-    // history for sparkline / x-t curve
-    history: [], // {t, x}
-    maxHistory: 12, // seconds of history
-    lastTs: 0
+  // ---------------- 运行时状态 ----------------
+  var vals = {};
+  SPEC.controls.forEach(function(c){ vals[c.id] = c.default; });
+
+  // P 既是对象也是函数：模型经常写 HOLO.P('k')，模板里写 HOLO.P.k，
+  // 两种都得能用，否则一调就 TypeError，整页直接空白（踩过）。
+  var P = new Proxy(function(key){ return vals[key]; }, {
+    get: function(t, k){
+      if (k === 'toJSON') return function(){ return vals; };
+      return vals[k];
+    },
+    set: function(t, k, v){ vals[k] = v; return true; },
+    has: function(t, k){ return k in vals; },
+    ownKeys: function(){ return Object.keys(vals); },
+    getOwnPropertyDescriptor: function(t, k){
+      return { value: vals[k], enumerable: true, configurable: true, writable: true };
+    }
+  });
+
+  var svg = {
+    l0: document.getElementById('l0'),
+    l1: document.getElementById('l1'),
+    l2: document.getElementById('l2'),
+    l3: document.getElementById('l3')
   };
+  var last = { l0: null, l1: null, l2: null, l3: null };
 
-  // DOM
-  const elK = document.getElementById('k');
-  const elM = document.getElementById('m');
-  const elA = document.getElementById('A');
-  const valK = document.getElementById('valK');
-  const valM = document.getElementById('valM');
-  const valA = document.getElementById('valA');
-  const mX = document.getElementById('mX');
-  const mV = document.getElementById('mV');
-  const mT = document.getElementById('mT');
-  const mTt = document.getElementById('mTt');
-  const mF = document.getElementById('mF');
-  const btnPause = document.getElementById('btnPause');
-  const btnReset = document.getElementById('btnReset');
-  const cmp1 = document.getElementById('cmp1');
-  const cmp2 = document.getElementById('cmp2');
-  const cmpR = document.getElementById('cmpR');
-
-  function omega(){ return Math.sqrt(state.k / state.m); }
-  function period(){ return 2 * Math.PI / omega(); }
-
-  function reset(){
-    state.t = 0;
-    state.x = state.A;
-    state.v = 0;
-    state.history = [];
-    state.lastTs = 0;
-    updateCompare();
+  // 内容没变就不重写 DOM：L0 往往几帧才变一次，省下来的都是帧率
+  function layer(name, html) {
+    html = String(html);
+    if (last[name] === html) return;
+    last[name] = html;
+    svg[name].innerHTML = html;
   }
 
-  function updateCompare(){
-    const T1 = 2*Math.PI*Math.sqrt(1/state.k);
-    const T2 = 2*Math.PI*Math.sqrt(2/state.k);
-    cmp1.textContent = T1.toFixed(3)+' s';
-    cmp2.textContent = T2.toFixed(3)+' s';
-    cmpR.textContent = (T2/T1).toFixed(3);
-  }
+  var TIME_SCALE = 1, STEP_ONCE = false, HIGHLIGHT = null;
 
-  // Resize handling
-  let W = 0, H = 0, DPR = 1;
-  function resize(){
-    const rect = cv.getBoundingClientRect();
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = rect.width;
-    H = rect.height;
-    cv.width = Math.floor(W * DPR);
-    cv.height = Math.floor(H * DPR);
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
-  window.addEventListener('resize', resize);
+  // ---------------- 示波器 ----------------
+  var scope = document.getElementById('scope');
+  var sctx = scope.getContext('2d');
+  var N = 120, ch1 = new Array(N).fill(0.5), ch2 = new Array(N).fill(0.5), hasCh2 = false;
 
-  // Controls
-  elK.addEventListener('input', ()=>{
-    state.k = parseFloat(elK.value);
-    valK.textContent = state.k.toFixed(1);
-    updateCompare();
-  });
-  elM.addEventListener('input', ()=>{
-    state.m = parseFloat(elM.value);
-    valM.textContent = state.m.toFixed(1);
-    updateCompare();
-  });
-  elA.addEventListener('input', ()=>{
-    state.A = parseFloat(elA.value);
-    valA.textContent = state.A.toFixed(2);
-    // reset phase to amplitude for clean start
-    state.x = state.A;
-    state.v = 0;
-    state.t = 0;
-    state.history = [];
-  });
-  btnPause.addEventListener('click', ()=>{
-    state.paused = !state.paused;
-    btnPause.textContent = state.paused ? '继续' : '暂停';
-    btnPause.classList.toggle('bg-emerald-500/20', state.paused);
-    btnPause.classList.toggle('border-emerald-500/40', state.paused);
-    btnPause.classList.toggle('text-emerald-300', state.paused);
-    btnPause.classList.toggle('bg-sky-500/20', !state.paused);
-    btnPause.classList.toggle('border-sky-500/40', !state.paused);
-    btnPause.classList.toggle('text-sky-300', !state.paused);
-  });
-  btnReset.addEventListener('click', reset);
-
-  // Physics integration (analytic for accuracy, but we advance time)
-  function step(dt){
-    // analytic solution: x = A cos(w t), v = -A w sin(w t)
-    state.t += dt;
-    const w = omega();
-    state.x = state.A * Math.cos(w * state.t);
-    state.v = -state.A * w * Math.sin(w * state.t);
-
-    // history
-    state.history.push({t: state.t, x: state.x});
-    // trim
-    const cutoff = state.t - state.maxHistory;
-    while(state.history.length && state.history[0].t < cutoff) state.history.shift();
-  }
-
-  // Drawing helpers
-  function drawGrid(x, y, w, h){
-    ctx.save();
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 1;
-    const step = 28;
-    ctx.beginPath();
-    for(let gx = x; gx <= x+w; gx += step){
-      ctx.moveTo(gx, y); ctx.lineTo(gx, y+h);
-    }
-    for(let gy = y; gy <= y+h; gy += step){
-      ctx.moveTo(x, gy); ctx.lineTo(x+w, gy);
-    }
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawSpring(x1, y, x2, coils, amp){
-    ctx.save();
-    ctx.strokeStyle = '#64748b';
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = '#64748b';
-    ctx.shadowBlur = 6;
-    ctx.beginPath();
-    const len = x2 - x1;
-    const seg = len / (coils * 2 + 2);
-    ctx.moveTo(x1, y);
-    let cx = x1 + seg;
-    ctx.lineTo(cx, y);
-    for(let i=0;i<coils;i++){
-      ctx.lineTo(cx + seg*0.5, y - amp);
-      ctx.lineTo(cx + seg*1.5, y + amp);
-      cx += seg*2;
-    }
-    ctx.lineTo(x2 - seg, y);
-    ctx.lineTo(x2, y);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawArrow(x1, y1, x2, y2, color, label){
-    const dx = x2-x1, dy = y2-y1;
-    const len = Math.hypot(dx,dy);
-    if(len < 1) return;
-    const ux = dx/len, uy = dy/len;
-    const head = Math.min(12, len*0.4);
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.lineWidth = 3;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.moveTo(x1,y1);
-    ctx.lineTo(x2 - ux*head*0.6, y2 - uy*head*0.6);
-    ctx.stroke();
-    // head
-    ctx.beginPath();
-    ctx.moveTo(x2, y2);
-    ctx.lineTo(x2 - ux*head - uy*head*0.5, y2 - uy*head + ux*head*0.5);
-    ctx.lineTo(x2 - ux*head + uy*head*0.5, y2 - uy*head - ux*head*0.5);
-    ctx.closePath();
-    ctx.fill();
-    if(label){
-      ctx.shadowBlur = 0;
-      ctx.font = '11px ui-monospace, monospace';
-      ctx.fillStyle = color;
-      ctx.textAlign = 'center';
-      ctx.fillText(label, (x1+x2)/2, y1 - 10);
-    }
-    ctx.restore();
-  }
-
-  function drawSparkline(x, y, w, h){
-    // mini realtime waveform of x vs t (last few seconds)
-    ctx.save();
-    ctx.fillStyle = 'rgba(15,23,42,0.6)';
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, 8);
-    ctx.fill();
-    ctx.stroke();
-
-    // grid
-    ctx.strokeStyle = '#1e293b';
-    ctx.beginPath();
-    for(let i=1;i<4;i++){
-      const gy = y + h*i/4;
-      ctx.moveTo(x+4, gy); ctx.lineTo(x+w-4, gy);
-    }
-    ctx.stroke();
-
-    const hist = state.history;
-    if(hist.length > 1){
-      const t0 = hist[0].t, t1 = hist[hist.length-1].t;
-      const span = Math.max(t1-t0, 0.001);
-      const A = Math.max(state.A, 0.1);
-      ctx.beginPath();
-      ctx.strokeStyle = '#a855f7';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = '#a855f7';
-      ctx.shadowBlur = 8;
-      for(let i=0;i<hist.length;i++){
-        const p = hist[i];
-        const px = x + 4 + (p.t - t0)/span * (w-8);
-        const py = y + h/2 - (p.x / A) * (h/2 - 6);
-        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  function drawScope() {
+    var w = scope.width, h = scope.height;
+    sctx.clearRect(0, 0, w, h);
+    sctx.strokeStyle = 'rgba(56,189,248,.08)';
+    sctx.lineWidth = 1;
+    for (var x = 0; x < w; x += 30) { sctx.beginPath(); sctx.moveTo(x, 0); sctx.lineTo(x, h); sctx.stroke(); }
+    function wave(arr, color, dash) {
+      sctx.beginPath(); sctx.strokeStyle = color; sctx.lineWidth = 1.4; sctx.setLineDash(dash || []);
+      for (var i = 0; i < arr.length; i++) {
+        var px = (i / (arr.length - 1)) * w;
+        var py = h - 3 - arr[i] * (h - 6);
+        i === 0 ? sctx.moveTo(px, py) : sctx.lineTo(px, py);
       }
-      ctx.stroke();
-      // cursor
-      const last = hist[hist.length-1];
-      const cx = x + 4 + (last.t - t0)/span * (w-8);
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = '#e2e8f0';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(cx, y+4); ctx.lineTo(cx, y+h-4);
-      ctx.stroke();
-      // dot
-      const cy = y + h/2 - (last.x / A) * (h/2 - 6);
-      ctx.fillStyle = '#fbbf24';
-      ctx.shadowColor = '#fbbf24';
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 3, 0, Math.PI*2);
-      ctx.fill();
+      sctx.stroke(); sctx.setLineDash([]);
     }
-    ctx.restore();
+    if (hasCh2) wave(ch2, 'rgba(244,63,94,.75)', [4, 3]);
+    wave(ch1, '#38bdf8');
   }
 
-  function draw(){
-    ctx.clearRect(0,0,W,H);
+  // ---------------- 对外 API ----------------
+  var api = {
+    P: P,
+    p: function(k){ return vals[k]; },
+    L0: function(h){ layer('l0', h); },
+    L1: function(h){ layer('l1', h); },
+    L2: function(h){ layer('l2', h); },
+    L3: function(h){ layer('l3', h); },
+    telemetry: function(a, b) {
+      ch1.push(Math.max(0, Math.min(1, a))); ch1.shift();
+      if (b === undefined) hasCh2 = false;
+      else { ch2.push(Math.max(0, Math.min(1, b))); ch2.shift(); hasCh2 = true; }
+      drawScope();
+    },
+    metric: function(id, text) {
+      var el = document.getElementById('m_' + id);
+      if (el) el.textContent = text;
+    },
+    iso: function(x, y, z, ox, oy) {
+      var rad = Math.PI / 6, OX = (ox === undefined ? 350 : ox), OY = (oy === undefined ? 240 : oy);
+      return { u: OX + (x - y) * Math.cos(rad), v: OY + (x + y) * Math.sin(rad) - (z || 0) };
+    },
+    highlight: function(){ return HIGHLIGHT; },
+    ghostActive: function(){ return !!ghostHTML; },
+    timeScale: function(){ return TIME_SCALE; }
+  };
+  window.HOLO = api;
 
-    // background
-    const bgGrad = ctx.createLinearGradient(0,0,0,H);
-    bgGrad.addColorStop(0, '#0b1220');
-    bgGrad.addColorStop(1, '#0f172a');
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0,0,W,H);
+  // ---------------- 参数胶囊 ----------------
+  var capBox = document.getElementById('capsules');
+  SPEC.controls.forEach(function(c){
+    var wrap = document.createElement('div');
+    wrap.className = 'cap';
+    wrap.innerHTML =
+      '<div class="row"><span class="nm">' + c.id + ' <b>' + c.label + '</b></span>' +
+      '<span class="vl" id="v_' + c.id + '">' + P[c.id] + (c.unit || '') + '</span></div>';
+    var input = document.createElement('input');
+    input.type = 'range'; input.min = c.min; input.max = c.max; input.step = c.step; input.value = P[c.id];
+    input.setAttribute('data-k', c.id);
+    input.addEventListener('input', function(){
+      var val = parseFloat(input.value);
+      P[c.id] = val;
+      document.getElementById('v_' + c.id).textContent = val + (c.unit || '');
+      api.reset();
+    });
+    input.addEventListener('pointerenter', function(){
+      wrap.classList.add('on');
+      HIGHLIGHT = c.id;
+    });
+    input.addEventListener('pointerleave', function(){
+      wrap.classList.remove('on');
+      HIGHLIGHT = null;
+    });
+    wrap.appendChild(input);
+    capBox.appendChild(wrap);
+  });
 
-    drawGrid(0,0,W,H);
+  // ---------------- 指标 ----------------
+  var metBox = document.getElementById('metrics');
+  SPEC.metrics.forEach(function(m){
+    var d = document.createElement('div');
+    d.className = 'metric';
+    d.innerHTML = '<div class="k">' + m.label + '</div><div class="v" id="m_' + m.id + '">—</div>';
+    metBox.appendChild(d);
+  });
 
-    // Layout: left spring area, right curve area
-    const pad = 20;
-    const splitX = W * 0.52;
-    const leftW = splitX - pad*2;
-    const leftH = H - pad*2;
-    const rightX = splitX + pad;
-    const rightW = W - rightX - pad;
-    const rightH = H - pad*2;
+  // ---------------- 视差 / 2.5D / 残影 / 运镜 ----------------
+  var ws = document.getElementById('ws');
+  var stage = document.getElementById('stage');
+  var badge = document.getElementById('badge');
+  var is3D = false, rotX = 56, rotZ = -30, zGap = 44, dragging = false, cinema = null;
+  var ghostHTML = { l1: null, l2: null };
 
-    // ---- Left: spring oscillator ----
-    const wallX = pad + 30;
-    const centerY = pad + leftH * 0.55;
-    const maxStretch = leftW * 0.55;
-    const A = Math.max(state.A, 0.1);
-    const xNorm = state.x / A; // -1..1
-    const blockSize = 46;
-    const blockX = wallX + 40 + maxStretch * 0.5 + xNorm * (maxStretch * 0.45);
-    const blockY = centerY - blockSize/2;
+  function applyStage() {
+    stage.style.transform = is3D
+      ? 'rotateX(' + rotX + 'deg) rotateZ(' + rotZ + 'deg) scale(.84)'
+      : 'none';
+    badge.textContent = is3D
+      ? '2.5D EXPLODED // X' + Math.round(rotX) + '° Z' + Math.round(rotZ) + '° GAP' + Math.round(zGap)
+      : '2D ORTHOGRAPHIC VIEW';
+  }
 
-    // wall
-    ctx.save();
-    ctx.fillStyle = '#334155';
-    ctx.strokeStyle = '#475569';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(wallX-14, centerY-70, 14, 140, 4);
-    ctx.fill();
-    ctx.stroke();
-    // hatch
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 1;
-    for(let i=-60;i<70;i+=10){
-      ctx.beginPath();
-      ctx.moveTo(wallX-14, centerY+i);
-      ctx.lineTo(wallX-4, centerY+i+8);
-      ctx.stroke();
-    }
-    ctx.restore();
+  document.getElementById('btn3d').addEventListener('click', function(){
+    is3D = !is3D;
+    this.classList.toggle('on', is3D);
+    this.textContent = is3D ? '❖ 复位 2D' : '❖ 2.5D 拆解';
+    stage.classList.toggle('is3d', is3D);
+    applyStage();
+  });
 
-    // spring
-    const springStart = wallX;
-    const springEnd = blockX;
-    const coils = 14;
-    const amp = 16;
-    drawSpring(springStart, centerY, springEnd, coils, amp);
-
-    // equilibrium marker
-    const eqX = wallX + 40 + maxStretch * 0.5;
-    ctx.save();
-    ctx.strokeStyle = '#334155';
-    ctx.setLineDash([4,4]);
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(eqX, centerY - 90);
-    ctx.lineTo(eqX, centerY + 90);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = '#475569';
-    ctx.font = '10px ui-monospace, monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('平衡位置', eqX, centerY + 105);
-    ctx.restore();
-
-    // block
-    ctx.save();
-    const blockGrad = ctx.createLinearGradient(blockX, blockY, blockX, blockY+blockSize);
-    blockGrad.addColorStop(0, '#7dd3fc');
-    blockGrad.addColorStop(1, '#0ea5e9');
-    ctx.fillStyle = blockGrad;
-    ctx.shadowColor = '#38bdf8';
-    ctx.shadowBlur = 18;
-    ctx.beginPath();
-    ctx.roundRect(blockX, blockY, blockSize, blockSize, 8);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    // particle
-    const pcx = blockX + blockSize/2;
-    const pcy = blockY + blockSize/2;
-    const pg = ctx.createRadialGradient(pcx, pcy, 0, pcx, pcy, 14);
-    pg.addColorStop(0, '#fef3c7');
-    pg.addColorStop(0.4, '#fbbf24');
-    pg.addColorStop(1, 'rgba(251,191,36,0)');
-    ctx.fillStyle = pg;
-    ctx.shadowColor = '#fbbf24';
-    ctx.shadowBlur = 20;
-    ctx.beginPath();
-    ctx.arc(pcx, pcy, 14, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-
-    // force arrow F = -k x
-    const F = -state.k * state.x;
-    const Fmax = state.k * A;
-    const arrowScale = 90 / Math.max(Fmax, 0.001);
-    const arrowLen = Math.max(-90, Math.min(90, F * arrowScale));
-    if(Math.abs(arrowLen) > 2){
-      drawArrow(pcx, blockY - 26, pcx + arrowLen, blockY - 26, '#f43f5e', 'F = -kx');
+  document.getElementById('btnGhost').addEventListener('click', function(){
+    var box = document.getElementById('ghostLayer');
+    if (ghostHTML.l1 !== null) {
+      ghostHTML = { l1: null, l2: null };
+      box.classList.remove('on');
+      this.classList.remove('on');
+      this.textContent = '👻 锁定残影';
     } else {
-      ctx.save();
-      ctx.fillStyle = '#f43f5e';
-      ctx.font = '11px ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('F ≈ 0', pcx, blockY - 30);
-      ctx.restore();
+      // 把当前 L1/L2 的画面冻结成一层品红虚影，之后实体会继续动，残影留在原地
+      ghostHTML = { l1: svg.l1.innerHTML, l2: svg.l2.innerHTML };
+      document.getElementById('g1').innerHTML = ghostHTML.l1;
+      document.getElementById('g2').innerHTML = ghostHTML.l2;
+      box.classList.add('on');
+      this.classList.add('on');
+      this.textContent = '👻 清除残影';
     }
+  });
 
-    // velocity arrow (small, below)
-    const vScale = 60 / Math.max(state.A * omega(), 0.001);
-    const vLen = Math.max(-60, Math.min(60, state.v * vScale));
-    if(Math.abs(vLen) > 2){
-      drawArrow(pcx, blockY + blockSize + 22, pcx + vLen, blockY + blockSize + 22, '#fbbf24', 'v');
+  document.getElementById('btnCinema').addEventListener('click', function(){
+    if (cinema) { clearInterval(cinema); cinema = null; this.classList.remove('on'); return; }
+    if (!is3D) document.getElementById('btn3d').click();
+    this.classList.add('on');
+    var t = 0, self = this;
+    cinema = setInterval(function(){
+      t += 0.03;
+      rotZ = -30 + Math.sin(t) * 26;
+      rotX = 54 + Math.cos(t * 0.8) * 10;
+      zGap = 44 + Math.sin(t * 1.5) * 18;
+      ws.style.setProperty('--z-gap', zGap + 'px');
+      applyStage();
+      if (t > 40) { clearInterval(cinema); cinema = null; self.classList.remove('on'); }
+    }, 16);
+  });
+
+  ws.addEventListener('pointermove', function(e){
+    var r = ws.getBoundingClientRect();
+    ws.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+    ws.style.setProperty('--my', (e.clientY - r.top) + 'px');
+    if (is3D && dragging) {
+      rotZ = Math.max(-70, Math.min(70, rotZ + e.movementX * 0.35));
+      rotX = Math.max(22, Math.min(74, rotX - e.movementY * 0.35));
+      applyStage();
     }
+  });
+  ws.addEventListener('pointerdown', function(e){
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    dragging = true;
+  });
+  window.addEventListener('pointerup', function(){ dragging = false; });
+  ws.addEventListener('wheel', function(e){
+    if (!is3D) return;
+    e.preventDefault();
+    zGap = Math.max(16, Math.min(100, zGap - e.deltaY * 0.06));
+    ws.style.setProperty('--z-gap', zGap + 'px');
+    applyStage();
+  }, { passive: false });
 
-    // labels
-    ctx.save();
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '11px ui-monospace, monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('弹簧振子', pad, pad + 14);
-    ctx.restore();
+  // ---------------- 时间膨胀 ----------------
+  document.querySelectorAll('.dock button[data-speed]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      TIME_SCALE = parseFloat(btn.dataset.speed);
+      document.querySelectorAll('.dock button[data-speed]').forEach(function(b){ b.classList.remove('on'); });
+      btn.classList.add('on');
+    });
+  });
+  document.getElementById('btnStep').addEventListener('click', function(){
+    TIME_SCALE = 0; STEP_ONCE = true;
+  });
 
-    // ---- Right: x-t curve ----
-    // panel
-    ctx.save();
-    ctx.fillStyle = 'rgba(15,23,42,0.55)';
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(rightX, pad, rightW, rightH, 10);
-    ctx.fill();
-    ctx.stroke();
+  // ---------------- 滤镜 ----------------
+  document.querySelectorAll('.dock button[data-theme]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      ws.setAttribute('data-theme', btn.dataset.theme);
+      document.querySelectorAll('.dock button[data-theme]').forEach(function(b){ b.classList.remove('on'); });
+      btn.classList.add('on');
+    });
+  });
 
-    // inner plot area
-    const plotPad = 34;
-    const px0 = rightX + plotPad;
-    const py0 = pad + plotPad;
-    const pw = rightW - plotPad*2;
-    const ph = rightH - plotPad*2;
-
-    // grid inside plot
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for(let i=0;i<=4;i++){
-      const gy = py0 + ph*i/4;
-      ctx.moveTo(px0, gy); ctx.lineTo(px0+pw, gy);
+  // ---------------- 宿主通信 ----------------
+  window.addEventListener('message', function(ev){
+    var d = ev.data || {};
+    if (d.type === 'UPDATE_PARAM' && d.key in P) {
+      P[d.key] = d.value;
+      var input = document.querySelector('#capsules input');
+      var el = document.getElementById('v_' + d.key);
+      if (el) el.textContent = d.value;
+      api.reset();
+    } else if (d.type === 'HIGHLIGHT_TARGET') {
+      HIGHLIGHT = d.active ? d.key : null;
+    } else if (d.type === 'RESET') {
+      api.reset();
+    } else if (d.type === 'CHAOS') {
+      // 混沌注入：阻尼/摩擦类参数推到 0，其余推到最大，制造极端现象
+      var damping = ['mu', 'c', 'b', 'k', 'damping', 'friction', 'drag'];
+      SPEC.controls.forEach(function(c){
+        var low = String(c.id).toLowerCase();
+        var isDamping = damping.some(function(k){ return low === k || low.indexOf(k) === 0; });
+        P[c.id] = isDamping ? c.min : c.max;
+        var el = document.getElementById('v_' + c.id);
+        if (el) el.textContent = P[c.id] + (c.unit || '');
+        var input = document.querySelector('#capsules input[data-k="' + c.id + '"]');
+        if (input) input.value = P[c.id];
+      });
+      api.reset();
+    } else if (d.type === 'GHOST_TOGGLE') {
+      document.getElementById('btnGhost').click();
     }
-    for(let i=0;i<=6;i++){
-      const gx = px0 + pw*i/6;
-      ctx.moveTo(gx, py0); ctx.lineTo(gx, py0+ph);
-    }
-    ctx.stroke();
+  });
 
-    // axes
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(px0, py0); ctx.lineTo(px0, py0+ph); ctx.lineTo(px0+pw, py0+ph);
-    ctx.stroke();
-
-    // zero line
-    const zeroY = py0 + ph/2;
-    ctx.strokeStyle = '#334155';
-    ctx.setLineDash([3,4]);
-    ctx.beginPath();
-    ctx.moveTo(px0, zeroY); ctx.lineTo(px0+pw, zeroY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // axis labels
-    ctx.fillStyle = '#64748b';
-    ctx.font = '10px ui-monospace, monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('t (s)', px0 + pw/2, py0 + ph + 22);
-    ctx.save();
-    ctx.translate(px0 - 20, py0 + ph/2);
-    ctx.rotate(-Math.PI/2);
-    ctx.fillText('x (m)', 0, 0);
-    ctx.restore();
-
-    // y ticks
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#64748b';
-    const yMax = Math.max(state.A, 0.1);
-    ctx.fillText('+'+yMax.toFixed(1), px0-6, py0+10);
-    ctx.fillText('0', px0-6, zeroY+3);
-    ctx.fillText('-'+yMax.toFixed(1), px0-6, py0+ph-2);
-
-    // x-t curve: draw over a rolling window of maxHistory seconds
-    const hist = state.history;
-    const windowSpan = state.maxHistory;
-    const tEnd = Math.max(state.t, windowSpan);
-    const tStart = tEnd - windowSpan;
-
-    // draw curve
-    if(hist.length > 1){
-      ctx.save();
-      ctx.beginPath();
-      ctx.strokeStyle = '#a855f7';
-      ctx.lineWidth = 2.2;
-      ctx.shadowColor = '#a855f7';
-      ctx.shadowBlur = 10;
-      let started = false;
-      for(let i=0;i<hist.length;i++){
-        const p = hist[i];
-        if(p.t < tStart) continue;
-        const u = (p.t - tStart) / windowSpan;
-        const gx = px0 + u * pw;
-        const gy = zeroY - (p.x / yMax) * (ph/2 - 8);
-        if(!started){ ctx.moveTo(gx, gy); started = true; }
-        else ctx.lineTo(gx, gy);
+  // ---------------- 主循环 ----------------
+  var T = 0, prev = performance.now(), started = false, errCount = 0;
+  function loop(now) {
+    // 底座脚本先于模板脚本执行，所以首帧之前模板的 reset() 还不存在——
+    // 推迟到第一次循环再初始化，否则 L0 基准层会是空的。
+    if (!started) { started = true; safeReset(); }
+    var raw = Math.min(0.05, (now - prev) / 1000);
+    prev = now;
+    var dt = raw * TIME_SCALE;
+    if (STEP_ONCE) { dt = 1 / 60; STEP_ONCE = false; }
+    T += dt;
+    try {
+      if (typeof window.frame === 'function') window.frame(dt, T);
+      errCount = 0;                       // 跑通就清零，偶发错误不会累计
+    } catch (e) {
+      // 关键：不要因为一次异常就把整个循环停掉。
+      // 停了之后自愈接手也只是换一份 HTML，画面在换之前永远是死的（踩过）。
+      errCount++;
+      if (errCount <= 3) {
+        try { window.onerror(String(e && e.message || e), '', 0, 0, e); } catch (e2) {}
+        showFault(String(e && e.message || e));
       }
-      ctx.stroke();
-      ctx.restore();
-
-      // cursor line at current time
-      const last = hist[hist.length-1];
-      const u = (last.t - tStart) / windowSpan;
-      const cx = px0 + Math.max(0, Math.min(1, u)) * pw;
-      ctx.save();
-      ctx.strokeStyle = '#e2e8f0';
-      ctx.lineWidth = 1.2;
-      ctx.shadowColor = '#e2e8f0';
-      ctx.shadowBlur = 6;
-      ctx.beginPath();
-      ctx.moveTo(cx, py0); ctx.lineTo(cx, py0+ph);
-      ctx.stroke();
-      // current point
-      const cy = zeroY - (last.x / yMax) * (ph/2 - 8);
-      ctx.fillStyle = '#fbbf24';
-      ctx.shadowColor = '#fbbf24';
-      ctx.shadowBlur = 14;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 4, 0, Math.PI*2);
-      ctx.fill();
-      ctx.restore();
     }
-
-    // title
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '11px ui-monospace, monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('位移-时间曲线 x(t)', rightX + 12, pad + 16);
-
-    // sparkline (mini realtime waveform) at bottom of right panel
-    drawSparkline(rightX + 12, pad + rightH - 62, rightW - 24, 50);
-
-    ctx.restore();
-
-    // ---- Update metrics ----
-    mX.textContent = state.x.toFixed(3);
-    mV.textContent = state.v.toFixed(3);
-    const T = period();
-    mT.textContent = T.toFixed(3);
-    mTt.textContent = T.toFixed(3);
-    mF.textContent = (1/T).toFixed(3);
-  }
-
-  // Main loop
-  function loop(ts){
-    if(!state.lastTs) state.lastTs = ts;
-    let dt = (ts - state.lastTs) / 1000;
-    state.lastTs = ts;
-    // clamp dt to avoid jumps
-    if(dt > 0.05) dt = 0.05;
-    if(dt < 0) dt = 0;
-
-    if(!state.paused){
-      // sub-step for stability
-      const steps = Math.max(1, Math.ceil(dt / 0.008));
-      const sub = dt / steps;
-      for(let i=0;i<steps;i++) step(sub);
-    }
-
-    draw();
     requestAnimationFrame(loop);
   }
 
-  // Init
-  resize();
-  reset();
-  updateCompare();
+  // 出错时在舞台中央留一行提示，总比"看起来什么都没发生"强
+  var faultEl = null;
+  function showFault(msg) {
+    if (!faultEl) {
+      faultEl = document.createElement('div');
+      faultEl.style.cssText =
+        'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;' +
+        'max-width:70%;padding:10px 14px;border:1px solid rgba(244,63,94,.5);' +
+        'background:rgba(2,6,23,.9);color:#fda4af;font:12px/1.6 ui-monospace,monospace;' +
+        'white-space:pre-wrap;word-break:break-all;';
+      document.querySelector('.stage-area').appendChild(faultEl);
+    }
+    faultEl.textContent = '⚠ 实验代码抛错（自愈已触发）\n' + msg;
+  }
+  function clearFault() {
+    if (faultEl) { faultEl.remove(); faultEl = null; }
+  }
+
+  function safeReset() {
+    clearFault();
+    if (typeof window.reset === 'function') {
+      try { window.reset(); } catch (e) {
+        showFault(String(e && e.message || e));
+        try { window.onerror(String(e && e.message || e), '', 0, 0, e); } catch (e2) {}
+      }
+    }
+  }
+
+  api.reset = safeReset;
+
+  // 先跑一次 reset 让模板把初始画面画出来（真正的首次调用在 loop 里）
+  drawScope();
+  applyStage();
   requestAnimationFrame(loop);
 })();
+</script>
+<script>
+window.reset = function(){
+  const A = HOLO.P('A'), k = HOLO.P('k'), m = HOLO.P('m');
+  const cx = 350, cy = 250, wallX = 120;
+  const scale = 90; // px per meter
+  // L0: 地面、墙壁、刻度尺、原长标记
+  let g = '';
+  g += `<line x1="60" y1="${cy+40}" x2="640" y2="${cy+40}" stroke="#2a4a5a" stroke-width="1.5"/>`;
+  g += `<line x1="${wallX}" y1="90" x2="${wallX}" y2="${cy+40}" stroke="#2a4a5a" stroke-width="2"/>`;
+  // 刻度尺
+  for(let i=-15;i<=15;i++){
+    const x = cx + i*scale*0.1*10/10;
+  }
+  for(let i=-15;i<=15;i++){
+    const x = cx + i*scale*0.1;
+    const big = (i%5===0);
+    g += `<line x1="${x}" y1="${cy+40}" x2="${x}" y2="${cy+40+(big?10:5)}" stroke="#3a6a7a" stroke-width="1"/>`;
+    if(big) g += `<text x="${x}" y="${cy+64}" fill="#4a8a9a" font-size="9" text-anchor="middle">${(i*0.1).toFixed(1)}</text>`;
+  }
+  // 原长位置
+  const eqX = cx;
+  g += `<line x1="${eqX}" y1="100" x2="${eqX}" y2="${cy+40}" stroke="#1e5a6a" stroke-width="1" stroke-dasharray="4 4"/>`;
+  g += `<text x="${eqX}" y="96" fill="#3a8a9a" font-size="10" text-anchor="middle">x=0</text>`;
+  // 时间轴网格（底部）
+  g += `<text x="60" y="380" fill="#3a6a7a" font-size="9">t →</text>`;
+  HOLO.L0(g);
+
+  // L1: 弹簧 + 质量块（初始位置）
+  const x0 = A*scale;
+  const blockW = 40, blockH = 40;
+  const bx = eqX + x0;
+  let s = '';
+  // 弹簧螺旋
+  const coils = 12;
+  const x1 = wallX, x2 = bx - blockW/2;
+  const len = x2 - x1;
+  let path = `M ${x1} ${cy} `;
+  for(let i=0;i<=coils*2;i++){
+    const px = x1 + len*i/(coils*2);
+    const py = cy + (i%2===0?0:(i%4===1?-14:14));
+    path += `L ${px} ${py} `;
+  }
+  path += `L ${x2} ${cy}`;
+  s += `<path d="${path}" fill="none" stroke="#7ad0e0" stroke-width="2.5" filter="url(#neon-glow)"/>`;
+  // 质量块
+  s += `<rect x="${bx-blockW/2}" y="${cy-blockH/2}" width="${blockW}" height="${blockH}" rx="4" fill="url(#block-3d)" stroke="#8ad0e0" stroke-width="1.5"/>`;
+  s += `<text x="${bx}" y="${cy+4}" fill="#0a1a20" font-size="11" text-anchor="middle" font-weight="bold">m</text>`;
+  HOLO.L1(s);
+
+  // L2: 清空（矢量在 frame 中画）
+  HOLO.L2('');
+
+  // L3: HUD 面板
+  let h = `<g transform="translate(520,20)">`;
+  h += `<rect x="0" y="0" width="160" height="110" rx="6" fill="rgba(10,30,40,0.75)" stroke="#2a6a7a" stroke-width="1"/>`;
+  h += `<text x="10" y="18" fill="#7ad0e0" font-size="11" font-weight="bold">实时遥测</text>`;
+  h += `<text id="hud-x" x="10" y="38" fill="#a0e0f0" font-size="10">x = 0.00 m</text>`;
+  h += `<text id="hud-v" x="10" y="56" fill="#a0e0f0" font-size="10">v = 0.00 m/s</text>`;
+  h += `<text id="hud-a" x="10" y="74" fill="#a0e0f0" font-size="10">a = 0.00 m/s²</text>`;
+  h += `<text id="hud-T" x="10" y="92" fill="#ffd080" font-size="10">T = 0.00 s</text>`;
+  h += `</g>`;
+  HOLO.L3(h);
+
+  // 初始化物理状态
+  window._phys = { x: A, v: 0, t: 0, trail: [] };
+};
+
+window.frame = function(dt, t){
+  const m = HOLO.P('m'), k = HOLO.P('k'), A = HOLO.P('A'), c = HOLO.P('damping');
+  const p = window._phys;
+  if(!p) return;
+
+  // 物理积分（半隐式欧拉）
+  const steps = 4;
+  const h = dt / steps;
+  for(let i=0;i<steps;i++){
+    const a = (-k*p.x - c*p.v) / m;
+    p.v += a*h;
+    p.x += p.v*h;
+  }
+  p.t += dt;
+
+  const cx = 350, cy = 250, wallX = 120;
+  const scale = 90;
+  const blockW = 40, blockH = 40;
+  const bx = cx + p.x*scale;
+
+  // L1 重绘弹簧与质量块
+  let s = '';
+  const coils = 12;
+  const x1 = wallX, x2 = bx - blockW/2;
+  const len = Math.max(10, x2 - x1);
+  let path = `M ${x1} ${cy} `;
+  for(let i=0;i<=coils*2;i++){
+    const px = x1 + len*i/(coils*2);
+    const py = cy + (i%2===0?0:(i%4===1?-14:14));
+    path += `L ${px} ${py} `;
+  }
+  path += `L ${x2} ${cy}`;
+  s += `<path d="${path}" fill="none" stroke="#7ad0e0" stroke-width="2.5" filter="url(#neon-glow)"/>`;
+  s += `<rect x="${bx-blockW/2}" y="${cy-blockH/2}" width="${blockW}" height="${blockH}" rx="4" fill="url(#block-3d)" stroke="#8ad0e0" stroke-width="1.5"/>`;
+  s += `<text x="${bx}" y="${cy+4}" fill="#0a1a20" font-size="11" text-anchor="middle" font-weight="bold">m</text>`;
+  HOLO.L1(s);
+
+  // L2 矢量与尾迹
+  let v = '';
+  const vScale = 30, aScale = 15;
+  // 速度矢量（蓝）
+  const vLen = p.v * vScale;
+  if(Math.abs(vLen) > 2){
+    v += `<line x1="${bx}" y1="${cy}" x2="${bx+vLen}" y2="${cy}" stroke="#4ac0ff" stroke-width="2.5" marker-end="url(#ar-cyan)" filter="url(#neon-glow)"/>`;
+  }
+  // 加速度矢量（红）
+  const aNow = (-k*p.x - c*p.v)/m;
+  const aLen = aNow * aScale;
+  if(Math.abs(aLen) > 2){
+    v += `<line x1="${bx}" y1="${cy-30}" x2="${bx+aLen}" y2="${cy-30}" stroke="#ff6a4a" stroke-width="2.5" marker-end="url(#ar-amber)" filter="url(#neon-glow)"/>`;
+  }
+  // 尾迹（位移-时间曲线，画在底部区域）
+  p.trail.push({t: p.t, x: p.x});
+  if(p.trail.length > 400) p.trail.shift();
+  const t0 = p.trail[0].t;
+  const tSpan = Math.max(2, p.t - t0);
+  const gx0 = 60, gx1 = 640, gy0 = 340, gy1 = 380;
+  let trailPath = '';
+  for(let i=0;i<p.trail.length;i++){
+    const pt = p.trail[i];
+    const px = gx0 + (pt.t - t0)/tSpan * (gx1-gx0);
+    const py = (gy0+gy1)/2 - pt.x/1.5 * (gy1-gy0)/2;
+    trailPath += (i===0?'M':'L') + ` ${px.toFixed(1)} ${py.toFixed(1)} `;
+  }
+  if(trailPath) v += `<path d="${trailPath}" fill="none" stroke="#4ac0ff" stroke-width="1.5" opacity="0.8"/>`;
+  v += `<line x1="${gx0}" y1="${(gy0+gy1)/2}" x2="${gx1}" y2="${(gy0+gy1)/2}" stroke="#1e4a5a" stroke-width="0.5" stroke-dasharray="2 3"/>`;
+  HOLO.L2(v);
+
+  // L3 HUD 更新
+  const T = 2*Math.PI*Math.sqrt(m/k);
+  const hud = document.getElementById('hud-x');
+  if(hud){
+    hud.textContent = `x = ${p.x.toFixed(2)} m`;
+    document.getElementById('hud-v').textContent = `v = ${p.v.toFixed(2)} m/s`;
+    document.getElementById('hud-a').textContent = `a = ${aNow.toFixed(2)} m/s²`;
+    document.getElementById('hud-T').textContent = `T = ${T.toFixed(2)} s`;
+  }
+
+  // 指标卡
+  HOLO.metric('x', p.x.toFixed(2)+' m');
+  HOLO.metric('v', p.v.toFixed(2)+' m/s');
+  HOLO.metric('a', aNow.toFixed(2)+' m/s²');
+  HOLO.metric('T', T.toFixed(2)+' s');
+
+  // 示波器：位移归一化 + 速度归一化
+  const xn = Math.max(0, Math.min(1, (p.x/A+1)/2));
+  const vn = Math.max(0, Math.min(1, (p.v/(A*Math.sqrt(k/m))+1)/2));
+  HOLO.telemetry(xn, vn);
+};
 </script>
 </body>
 </html>

@@ -32,13 +32,14 @@ def build_gif():
     imgs = []
     for f in files:
         im = Image.open(f).convert("RGB")
-        w = 960
+        w = 880
         h = round(im.height * w / im.width)
         imgs.append(im.resize((w, h), Image.LANCZOS))
 
-    # 每帧 90ms ≈ 11fps；同一实验的 3 帧连起来有"在动"的感觉
+    # 每帧 90ms ≈ 11fps；同一实验的 3 帧连起来有"在动"的感觉。
+    # 全息底座有大量渐变与发光，128 色会撑到 4.7MB，64 色能压到 2MB 出头且肉眼几乎无差。
     out = os.path.join(ASSETS, "demo.gif")
-    frames = [im.convert("P", palette=Image.ADAPTIVE, colors=128) for im in imgs]
+    frames = [im.convert("P", palette=Image.ADAPTIVE, colors=64) for im in imgs]
     frames[0].save(
         out,
         save_all=True,

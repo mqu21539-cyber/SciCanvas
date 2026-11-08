@@ -28,7 +28,7 @@ const CHAR_MAP: Record<string, string> = {
   "ᵢ": "_{i}", "ₙ": "_{n}", "ₖ": "_{k}",
 };
 
-function toLatex(raw: string): string {
+export function toLatex(raw: string): string {
   const text = raw.replace(/\$/g, "").trim();
   if (!text) return "";
   let out = "";

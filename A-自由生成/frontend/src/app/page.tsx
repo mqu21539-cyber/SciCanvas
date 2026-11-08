@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import katex from "katex";
 import HoloCockpit, { type AgentStatus } from "../components/HoloCockpit";
-import MathFormula from "../components/MathFormula";
+import MathFormula, { toLatex } from "../components/MathFormula";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8010";
 
@@ -305,7 +306,33 @@ export default function SciCanvasApp() {
     const withCredit = htmlCode.includes("Powered by SciCanvas")
       ? htmlCode
       : htmlCode.replace(/<\/body>/i, `${credit}</body>`);
-    const blob = new Blob([withCredit], { type: "text/html;charset=utf-8" });
+
+    // 导出的文件里，公式原本是纯文本。用 KaTeX 的 MathML 输出替换掉——
+    // MathML 是浏览器原生支持的，不需要带 CSS、不需要字体文件，单文件依然自包含。
+    const formula = plan?.formula_latex?.trim();
+    let mathml = "";
+    if (formula) {
+      try {
+        mathml = katex.renderToString(toLatex(formula), {
+          output: "mathml",
+          throwOnError: false,
+          displayMode: false,
+        });
+      } catch {
+        mathml = "";
+      }
+    }
+    const injectMath = mathml
+      ? "<script>(function(){var ml=" +
+        JSON.stringify(mathml) +
+        ",t=" +
+        JSON.stringify(formula) +
+        ";var n=document.querySelectorAll('span,div,h1,h2,p,strong');" +
+        "for(var i=0;i<n.length;i++){if(n[i].children.length===0&&n[i].textContent.trim()===t){n[i].innerHTML=ml;break;}}})();</script>"
+      : "";
+    const finalHtml = injectMath ? withCredit.replace(/<\/body>/i, `${injectMath}</body>`) : withCredit;
+
+    const blob = new Blob([finalHtml], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

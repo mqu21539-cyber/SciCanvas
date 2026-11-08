@@ -4,6 +4,22 @@
 
 ---
 
+## [0.15.0] — 2026-11-08
+
+### 变更 · 收尾四项
+- **展厅 5 个实验全部换成全息版**（`spring-oscillator / doppler-sonic-boom / gradient-descent /
+  binary-star-slingshot / doppler-agentic`），文件名不变，manifest id 不受影响。
+  逐个用 `check-html` 验过：无异常、四层有内容、滑块 3–4 个。
+- **首页 `demo.gif` 重录**：旧图还是 canvas 时代。现在 6 个实验（洛伦兹/行波/电场/轨道/抛体/多普勒）
+  都是全息界面，并给截帧脚本加了 2.6 s 预热，轨迹能长满再截。
+- **`architecture.svg` 重画**：从"生成整份 HTML"改成"两条路径 + 全息底座四层 + 自愈回路"，
+  标明 B 1.5 s / A 17 s 与 60 FPS。
+- **导出的 HTML 里公式也会排版**：导出时用 KaTeX 生成 **MathML** 注入，
+  MathML 是浏览器原生支持的，不需要带 CSS 与字体，单文件依然自包含。
+  实测 `T = 2 * pi * sqrt(m / k)` → 渲染出带根号的 `T = 2·π·√(m/k)`。
+
+---
+
 ## [0.14.1] — 2026-11-05
 
 ### 修复 · 回落路径把界面打回"裸控件"
