@@ -36,7 +36,12 @@ await withChrome(async ({ newPage }) => {
         const el = document.getElementById(id);
         return el ? el.childElementCount : -1;
       });
-      return { canvas: !!c, painted, sampled, sliders, layers };
+      // 遥测指标不能出现 NaN/undefined。踩过一次：数字滚动在 dt 赋值之前跑，
+      // 首帧拿到 undefined，四个指标全变 NaN，而当时的测试一条都没抓到。
+      const metrics = [...document.querySelectorAll('.metric .v')].map(e => e.textContent.trim());
+      const badMetrics = metrics.filter(x => /NaN|undefined|null/i.test(x));
+      const numericMetrics = metrics.filter(x => /[0-9]/.test(x)).length;
+      return { canvas: !!c, painted, sampled, sliders, layers, metrics, badMetrics, numericMetrics };
     })()`)
     const name = file.split(/[\\/]/).pop()
     const svgNodes = (info.layers || []).reduce((a, b) => a + Math.max(0, b), 0)
@@ -47,6 +52,18 @@ await withChrome(async ({ newPage }) => {
       info.layers && svgNodes >= 3 ? `SVG 层节点 ${JSON.stringify(info.layers)}` : `${info.painted}/${info.sampled} 像素`
     )
     t.ok(`${name}: 滑块`, (info.sliders || 0) >= 2, String(info.sliders))
+    t.ok(
+      `${name}: 遥测指标无 NaN`,
+      (info.badMetrics || []).length === 0,
+      info.badMetrics && info.badMetrics.length
+        ? `异常值 ${JSON.stringify(info.badMetrics)} · 全部 ${JSON.stringify(info.metrics)}`
+        : `全部 ${JSON.stringify(info.metrics)}`
+    )
+    t.ok(
+      `${name}: 至少一个指标是数字`,
+      (info.numericMetrics || 0) > 0,
+      `${info.numericMetrics}/${(info.metrics || []).length}`
+    )
   }
 })
 process.exit(t.done())
