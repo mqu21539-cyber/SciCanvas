@@ -8,7 +8,6 @@
 
 > One pipeline, two strategies: template hit ≈1.5 s, otherwise dual-agent ≈17 s. **简体中文 → [`README.zh-CN.md`](./README.zh-CN.md)**
 
-[![GitHub Stars](https://img.shields.io/github/stars/your-username/SciCanvas?style=flat)](https://github.com/your-username/SciCanvas/stargazers)
 [![DeepSeek Harness](https://img.shields.io/badge/powered%20by-DeepSeek%20Harness-4d6bfe)](https://github.com/deepseek-ai/deepseek-harness)
 [![License: MIT](https://img.shields.io/badge/License-MIT-22c55e.svg)](./LICENSE)
 
@@ -43,7 +42,7 @@ Reading static math formulas and dense arXiv papers is painful. Inspired by **3B
 ### 1. Clone & Configure Backend
 
 ```bash
-git clone https://github.com/your-username/SciCanvas.git
+git clone https://github.com/<你的用户名>/SciCanvas.git
 cd SciCanvas/backend
 pip install -r requirements.txt
 cp .env.example .env          # Windows: copy .env.example .env
